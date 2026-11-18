@@ -60,7 +60,7 @@ it('registers the provider, its statuses, repositories and hooks', function (): 
     $this->assertFilterAdded('woocommerce_add_to_cart_validation');
     $this->assertFilterAdded('tribe_tickets_attendee_repository_map');
     $this->assertFilterAdded('tec_tickets_completed_status_by_provider_name');
-    $this->assertFilterAdded('woocommerce_product_data_tabs');
+    $this->assertActionAdded('tribe_events_tickets_metabox_edit_main');
     $this->assertFilterAdded('tec_tickets_admin_tickets_table_query_args');
     $this->assertActionAdded('woocommerce_email_after_order_table');
 });
@@ -70,7 +70,7 @@ it('leaves the admin screens out of front-end requests', function (): void {
 
     pluginWith()->integrate();
 
-    expect(has_filter('woocommerce_product_data_tabs'))->toBeFalse();
+    expect(has_filter('tec_tickets_admin_tickets_table_query_args'))->toBeFalse();
 });
 
 it('stands down and says why when a requirement is missing', function (): void {

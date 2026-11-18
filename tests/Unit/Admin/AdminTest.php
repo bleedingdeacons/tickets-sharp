@@ -7,11 +7,8 @@ use BleedingDeacons\WpMocks\WpState;
 use Brain\Monkey\Functions;
 use TicketsSharp\Admin\Notices;
 use TicketsSharp\Admin\OrderMetaBox;
-use TicketsSharp\Admin\ProductFieldsTab;
 use TicketsSharp\Admin\Settings;
-use TicketsSharp\Attendees\FieldSet;
 use TicketsSharp\Commerce\Provider;
-use TicketsSharp\Commerce\TicketProducts;
 use TicketsSharp\Integration\Shop;
 use TicketsSharp\Orders\Mailer;
 use TicketsSharp\Support\Keys;
@@ -69,65 +66,6 @@ describe('Settings page', function (): void {
 
     it('leaves other sections alone', function (): void {
         expect((new Settings())->fields(['x'], 'downloadable'))->toBe(['x']);
-    });
-});
-
-describe('Product fields tab', function (): void {
-    beforeEach(function (): void {
-        $this->products = Mockery::mock(TicketProducts::class);
-        $this->products->shouldReceive('isTicket')->andReturnUsing(static fn (int $id): bool => $id === 5);
-        $this->tab = new ProductFieldsTab($this->products);
-    });
-
-    it('registers its hooks', function (): void {
-        $this->tab->register();
-
-        $this->assertFilterAdded('woocommerce_product_data_tabs');
-        $this->assertActionAdded('woocommerce_product_data_panels');
-        $this->assertActionAdded('woocommerce_process_product_meta');
-        $this->assertActionAdded('tribe_events_tickets_metabox_edit_advanced');
-    });
-
-    it('adds the tab only on ticket products', function (): void {
-        $GLOBALS['post'] = TestPost::add(5, 'product');
-        expect($this->tab->addTab([]))->toHaveKey(ProductFieldsTab::TAB);
-
-        $GLOBALS['post'] = TestPost::add(6, 'product');
-        expect($this->tab->addTab([]))->toBe([])
-            ->and($this->tab->addTab('x'))->toBe('x');
-    });
-
-    it('renders the fields as editable text', function (): void {
-        WpState::$postMeta[5][Keys::PRODUCT_FIELDS] = FieldSet::fromText('Name | name | required');
-        $GLOBALS['post'] = TestPost::add(5, 'product');
-
-        expect(captureOutput([$this->tab, 'renderPanel']))->toContain('Name | name | required</textarea>');
-
-        $GLOBALS['post'] = TestPost::add(6, 'product');
-        expect(captureOutput([$this->tab, 'renderPanel']))->toBe('');
-    });
-
-    it('saves the posted fields, or clears them', function (): void {
-        $_POST[ProductFieldsTab::INPUT] = "Name | name | required\nDiet | select | optional | Veg";
-        $this->tab->save(5);
-        expect(WpState::$postMeta[5][Keys::PRODUCT_FIELDS])->toHaveCount(2);
-
-        $this->tab->saveText(5, "   \n");
-        expect(WpState::$postMeta[5])->not->toHaveKey(Keys::PRODUCT_FIELDS);
-
-        $_POST[ProductFieldsTab::INPUT] = 'Name | name';
-        $this->tab->save(6);
-        expect(WpState::$postMeta)->not->toHaveKey(6);
-    });
-
-    it('links Event Tickets\' ticket form to the tab', function (): void {
-        Functions\when('get_edit_post_link')->justReturn('https://example.test/wp-admin/post.php?post=5&action=edit');
-
-        expect(captureOutput(fn () => $this->tab->ticketEditorLink(10, 5)))->toContain('post=5&#038;action=edit#tsharp_attendees')
-            ->and(captureOutput(fn () => $this->tab->ticketEditorLink(10, 6)))->toBe('');
-
-        Functions\when('get_edit_post_link')->justReturn(null);
-        expect(captureOutput(fn () => $this->tab->ticketEditorLink(10, 5)))->toBe('');
     });
 });
 

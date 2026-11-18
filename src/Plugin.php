@@ -6,8 +6,8 @@ namespace TicketsSharp;
 
 use TicketsSharp\Admin\Notices;
 use TicketsSharp\Admin\OrderMetaBox;
-use TicketsSharp\Admin\ProductFieldsTab;
 use TicketsSharp\Admin\Settings as SettingsPage;
+use TicketsSharp\Admin\TicketFormFields;
 use TicketsSharp\Admin\TicketsTable;
 use TicketsSharp\Attendees\AttendeeStore;
 use TicketsSharp\Attendees\Columns;
@@ -161,7 +161,7 @@ final class Plugin
         (new Columns())->register();
 
         if (is_admin()) {
-            (new ProductFieldsTab($products))->register();
+            (new TicketFormFields($provider))->register();
             (new SettingsPage())->register();
             (new OrderMetaBox($provider, $mailer, $shop))->register();
             (new TicketsTable())->register();

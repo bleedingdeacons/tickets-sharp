@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace TicketsSharp\Commerce;
 
+use TicketsSharp\Admin\TicketFormFields;
+use TicketsSharp\Attendees\FieldSet;
 use TicketsSharp\Attendees\Ledger;
 use TicketsSharp\Integration\EventTickets;
 use TicketsSharp\Integration\Shop;
@@ -170,7 +172,37 @@ class TicketProducts
             $this->eventTickets->setTicketCapacity($ticket, $plan->capacity);
         }
 
+        $this->saveAttendeeFields($productId, $raw, $isUpdate);
+
         return $productId;
+    }
+
+    /**
+     * Stores what the ticket asks of each attendee, from the ticket form's
+     * "Attendee information" box ({@see \TicketsSharp\Admin\TicketFormFields}).
+     *
+     * A form without the box (the block editor) leaves an existing ticket's
+     * fields alone, and gives a new ticket the default: each attendee's name.
+     *
+     * @param array<string, mixed> $raw
+     */
+    public function saveAttendeeFields(int $productId, array $raw, bool $isUpdate): void
+    {
+        if (array_key_exists(TicketFormFields::INPUT, $raw)) {
+            $text = is_string($raw[TicketFormFields::INPUT]) ? wp_unslash($raw[TicketFormFields::INPUT]) : '';
+        } elseif (! $isUpdate) {
+            $text = TicketFormFields::DEFAULT_TEXT;
+        } else {
+            return;
+        }
+
+        $fields = FieldSet::fromText($text);
+        if ($fields === []) {
+            delete_post_meta($productId, Keys::PRODUCT_FIELDS);
+            return;
+        }
+
+        update_post_meta($productId, Keys::PRODUCT_FIELDS, $fields);
     }
 
     /**
