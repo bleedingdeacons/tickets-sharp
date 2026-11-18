@@ -21,13 +21,13 @@ it('goes in the ticket form, after the capacity field', function (): void {
     $this->assertActionAdded('tribe_events_tickets_metabox_edit_main');
 });
 
-it('asks a new ticket\'s attendees for their name by default', function (): void {
+it('asks a new ticket\'s attendees for their name and email by default', function (): void {
     $this->handler->shouldReceive('is_correct_provider')->with(10, $this->provider)->andReturn(true);
 
     $html = captureOutput(fn () => $this->fields->render(10, ''));
 
     expect($html)->toContain('name="tsharp_attendee_fields"')
-        ->toContain('>Name | name | required</textarea>')
+        ->toContain(">Name | name | required\nEmail | email | required</textarea>")
         ->toContain('Attendee information:');
 });
 

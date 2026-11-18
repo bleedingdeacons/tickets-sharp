@@ -186,6 +186,10 @@ class DetailsPage
      */
     public function render($atts = []): string
     {
+        // Enqueued here, so only pages showing the form load it; WordPress
+        // prints a style enqueued this late in the footer.
+        wp_enqueue_style('tickets-sharp-attendees', TICKETS_SHARP_URL . 'assets/css/attendees.css', [], TICKETS_SHARP_VERSION);
+
         $items = $this->itemsNeedingFields();
         if ($items === []) {
             return '<div class="tsharp-attendees tsharp-attendees--empty"><p>'
@@ -211,7 +215,7 @@ class DetailsPage
             $html .= '</section>';
         }
 
-        $html .= '<p><button type="submit" class="button alt">' . esc_html__('Continue to checkout', 'tickets-sharp') . '</button></p>';
+        $html .= '<p class="tsharp-attendees__submit"><button type="submit" class="button alt">' . esc_html__('Continue to checkout', 'tickets-sharp') . '</button></p>';
 
         return $html . '</form>';
     }

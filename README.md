@@ -31,9 +31,10 @@ gateway, coupon or tax setup the shop already has.
   across tickets bought together in one basket.
 - **Attendee information.** Each ticket can ask every attendee for a name, an email address, a
   phone number, text, a choice from a list or a checkbox. The fields are set in the ticket form's
-  **Attendee information** box, under Capacity; a new ticket asks for each attendee's name by
-  default. Buyers fill them in on an attendee details page between the cart and the checkout. The
-  answers show in the Attendees list, the CSV export and on the order.
+  **Attendee information** box, under Capacity; a new ticket asks for each attendee's name and
+  email by default. Buyers fill them in on an attendee details page between the cart and the
+  checkout. Each attendee with an email is sent their own ticket, and the buyer gets a copy of
+  them all. The answers show in the Attendees list, the CSV export and on the order.
 - **QR check-in.** Each ticket e-mail carries a QR code encoding Event Tickets' check-in link.
   Scanning it while signed in as an event manager checks the attendee in. The Event Tickets app
   reads the same codes. Only paid attendees can be checked in.
@@ -57,7 +58,7 @@ gateway, coupon or tax setup the shop already has.
    (Event Tickets only shows the choice when more than one provider is active).
 3. In the same ticket form, the **Attendee information** box says what to ask each attendee, one
    field per line: `Label | type | required | Option A, Option B`. New tickets start with
-   `Name | name | required`; empty the box to ask nothing. (The block editor's ticket form has no
+   `Name | name | required` and `Email | email | required`; empty the box to ask nothing. (The block editor's ticket form has no
    such box: tickets made there get the default, and can be changed in the classic form.)
 4. Settings live under **WooCommerce › Settings › Products › Event tickets**:
    - which order statuses issue tickets;

@@ -188,11 +188,12 @@ describe('attendee information from the ticket form', function (): void {
         expect(WpState::$postMeta[5])->not->toHaveKey(Keys::PRODUCT_FIELDS);
     });
 
-    it('gives a new ticket from a form without the box the default: the name', function (): void {
+    it('gives a new ticket from a form without the box the default: name and email', function (): void {
         $this->products->saveAttendeeFields(5, [], false);
 
         expect(WpState::$postMeta[5][Keys::PRODUCT_FIELDS])->toBe([
             ['key' => 'name', 'label' => 'Name', 'type' => 'name', 'required' => true, 'options' => []],
+            ['key' => 'email', 'label' => 'Email', 'type' => 'email', 'required' => true, 'options' => []],
         ]);
     });
 
