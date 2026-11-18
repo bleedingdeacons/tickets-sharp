@@ -1,0 +1,40 @@
+# Committed PHPStan config.
+#
+# phpstan.neon (no .dist) is gitignored and, if present, overrides this file
+# entirely — keep personal tweaks there. This .dist is what CI uses.
+#
+# Keep to YAML-compatible syntax: the README badge reads parameters.level by
+# parsing this file as YAML, and CI asserts that it still can.
+
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 8
+    # Analyse across the supported range — 8.4 is the floor, 8.5 the ceiling
+    # CI also runs.
+    phpVersion:
+        min: 80400
+        max: 80500
+    # PHPDoc informs types but does not prove conditions. Values here arrive
+    # from post meta, order meta, $_POST and Event Tickets' loosely typed
+    # arrays, none of which an annotation can guarantee.
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - src
+        - tickets-sharp.php
+        - uninstall.php
+    excludePaths:
+        - tests
+    bootstrapFiles:
+        - tests/phpstan/bootstrap.php
+    scanFiles:
+        # Event Tickets, The Events Calendar and WooCommerce are third-party
+        # plugins: not Composer dependencies, and not checked out in CI. These
+        # stubs reproduce only the surface Tickets Sharp touches; the test
+        # bootstrap loads the same files so the classes can be extended and
+        # mocked in a unit run.
+        - tests/stubs/event-tickets.php
+        - tests/stubs/the-events-calendar.php
+        - tests/stubs/woocommerce.php
+    reportUnmatchedIgnoredErrors: false

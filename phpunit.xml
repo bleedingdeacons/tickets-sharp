@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Schema is 10.5. Coverage include/exclude therefore lives in <source>,
+    not the 9.x <coverage> element, which now carries only report options.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <!--
+            Nothing is excluded. Admin screens are covered by rendering them
+            inside an output buffer (captureOutput() in tests/Pest.php), as
+            Scrutiny does. The only lines that genuinely cannot run in-process
+            are the `if (!defined('ABSPATH')) exit;` guards and the `exit` after
+            a redirect; the work behind each redirect lives in a method that is
+            driven directly.
+        -->
+    </source>
+</phpunit>
