@@ -49,15 +49,44 @@ describe('EventTickets', function (): void {
         $this->et->clearTicketCaches(10);
     });
 
-    it('builds QR check-in links and images through Event Tickets', function (): void {
+    it('builds QR check-in links through Event Tickets', function (): void {
         $connector = Mockery::mock(Connector::class);
         $connector->shouldReceive('get_checkin_url')->with(80, 10, 'abc')->andReturn('https://example.test/qr');
-        $connector->shouldReceive('get_image_url_for_link')->with('https://example.test/qr')->andReturn('https://example.test/qr.png');
         tribe_singleton(Connector::class, $connector);
 
-        expect($this->et->qrCheckinUrl(80, 10, 'abc'))->toBe('https://example.test/qr')
-            ->and($this->et->qrImageUrl('https://example.test/qr'))->toBe('https://example.test/qr.png')
-            ->and($this->et->qrImageUrl(''))->toBe('');
+        expect($this->et->qrCheckinUrl(80, 10, 'abc'))->toBe('https://example.test/qr');
+    });
+
+    it('writes QR images larger than Event Tickets\' default, without changing its shared instance', function (): void {
+        $shared = new class extends \TEC\Common\QR\QR {
+            /** @var list<array{int, int, string, string, string}> */
+            public static array $written = [];
+
+            public function get_png_as_file(string $data, string $name, string $folder = 'tec-qr-codes'): array
+            {
+                self::$written[] = [$this->size, $this->margin, $data, $name, $folder];
+
+                return ['file' => '/x.png', 'url' => 'https://example.test/uploads/tec-tickets-qr/' . $name . '.png', 'type' => 'image/png', 'error' => false];
+            }
+        };
+        tribe_singleton(\TEC\Common\QR\QR::class, $shared);
+
+        expect($this->et->qrImageUrl('https://example.test/qr', 'tsharp-qr-80-abc'))->toBe('https://example.test/uploads/tec-tickets-qr/tsharp-qr-80-abc.png')
+            ->and($shared::$written)->toBe([[6, 2, 'https://example.test/qr', 'tsharp-qr-80-abc', 'tec-tickets-qr']])
+            ->and($shared->size)->toBe(3)
+            ->and($this->et->qrImageUrl('', 'x'))->toBe('');
+    });
+
+    it('returns no QR image when the file could not be written', function (): void {
+        $failing = new class extends \TEC\Common\QR\QR {
+            public function get_png_as_file(string $data, string $name, string $folder = 'tec-qr-codes'): array
+            {
+                return ['file' => '', 'url' => '', 'type' => '', 'error' => 'disk full'];
+            }
+        };
+        tribe_singleton(\TEC\Common\QR\QR::class, $failing);
+
+        expect($this->et->qrImageUrl('https://example.test/qr', 'n'))->toBe('');
     });
 
     it('recognises events through The Events Calendar', function (): void {

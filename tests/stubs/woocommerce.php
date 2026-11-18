@@ -412,6 +412,14 @@ namespace {
         }
     }
 
+    if (! class_exists('WC_Email')) {
+        class WC_Email
+        {
+            /** @var string */
+            public $id = '';
+        }
+    }
+
     if (! class_exists('WC_Cart')) {
         class WC_Cart
         {

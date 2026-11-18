@@ -19,6 +19,7 @@ use TicketsSharp\Commerce\CartHandler;
 use TicketsSharp\Commerce\Provider;
 use TicketsSharp\Commerce\TicketProducts;
 use TicketsSharp\Commerce\Urls;
+use TicketsSharp\Emails\OrderEmailTickets;
 use TicketsSharp\Emails\TicketImage;
 use TicketsSharp\Integration\EventTickets;
 use TicketsSharp\Integration\Repositories\AttendeeRepository;
@@ -152,8 +153,11 @@ final class Plugin
         (new StatusSync($store, $generator, $statuses, $mailer, $shop))->register();
         $details->register();
         (new CartHandler($shop, $products, $urls, $details))->register();
-        (new QrCode($eventTickets))->register();
-        (new TicketImage())->register();
+        $qrCode = new QrCode($eventTickets);
+        $qrCode->register();
+        $ticketImage = new TicketImage();
+        $ticketImage->register();
+        (new OrderEmailTickets($provider, $statuses, $qrCode, $ticketImage))->register();
         (new Columns())->register();
 
         if (is_admin()) {

@@ -6,6 +6,7 @@ namespace TicketsSharp\CheckIn;
 
 use TicketsSharp\Commerce\Provider;
 use TicketsSharp\Integration\EventTickets;
+use TicketsSharp\Support\Keys;
 
 if (! defined('ABSPATH')) {
     exit;
@@ -67,17 +68,21 @@ class QrCode
             return '';
         }
 
-        $url = $this->imageUrl($ticket);
-        if ($url === '') {
+        $image = $this->imageTag($ticket);
+        if ($image === '') {
             return '';
         }
 
-        return '<td class="tec-tickets__email-table-content-ticket-qr tsharp-qr" style="padding:8px 0;text-align:center;">'
-            . '<img src="' . esc_url($url) . '" width="160" height="160" alt="' . esc_attr__('Check-in QR code', 'tickets-sharp') . '" style="display:block;margin:0 auto;"/>'
-            . '</td>';
+        return '<td class="tec-tickets__email-table-content-ticket-qr tsharp-qr" style="padding:8px 0;text-align:center;">' . $image . '</td>';
     }
 
     /**
+     * The attendee's QR image URL, made once and then kept on the attendee —
+     * the same ticket can be e-mailed several times (ticket e-mail, order
+     * e-mail, a resend), and each fresh render would otherwise write a new
+     * file. A kept URL is only reused while it still encodes the attendee's
+     * current security code.
+     *
      * @param array<string, mixed> $ticket
      */
     public function imageUrl(array $ticket): string
@@ -90,8 +95,36 @@ class QrCode
             return '';
         }
 
-        $link = $this->eventTickets->qrCheckinUrl($attendeeId, $eventId, $code);
+        $kept = get_post_meta($attendeeId, Keys::ATTENDEE_QR_IMAGE, true);
+        if (is_array($kept) && ($kept['code'] ?? null) === $code && is_string($kept['url'] ?? null) && $kept['url'] !== '') {
+            return $kept['url'];
+        }
 
-        return $link === '' ? '' : $this->eventTickets->qrImageUrl($link);
+        $link = $this->eventTickets->qrCheckinUrl($attendeeId, $eventId, $code);
+        if ($link === '') {
+            return '';
+        }
+
+        $url = $this->eventTickets->qrImageUrl($link, 'tsharp-qr-' . $attendeeId . '-' . substr(md5($link), 0, 12));
+        if ($url !== '') {
+            update_post_meta($attendeeId, Keys::ATTENDEE_QR_IMAGE, ['code' => $code, 'url' => $url]);
+        }
+
+        return $url;
+    }
+
+    /**
+     * An `<img>` of the attendee's QR code, or ''.
+     *
+     * @param array<string, mixed> $ticket
+     */
+    public function imageTag(array $ticket, int $size = 160): string
+    {
+        $url = $this->imageUrl($ticket);
+        if ($url === '') {
+            return '';
+        }
+
+        return '<img src="' . esc_url($url) . '" width="' . $size . '" height="' . $size . '" alt="' . esc_attr__('Check-in QR code', 'tickets-sharp') . '" style="display:block;margin:0 auto;" />';
     }
 }
