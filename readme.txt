@@ -4,7 +4,7 @@ Tags: event tickets, woocommerce, events, tickets, attendees
 Requires at least: 6.9
 Tested up to: 6.9
 Stable tag: 0.1.3
-Build date: 2026/11/18 18:13:14
+Build date: 2026/11/18 19:07:34
 Requires PHP: 8.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
