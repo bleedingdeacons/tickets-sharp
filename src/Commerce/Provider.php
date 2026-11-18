@@ -335,6 +335,50 @@ class Provider extends Tribe__Tickets__Tickets
     }
 
     /**
+     * A ticket's price as a number, for Event Tickets' screens.
+     *
+     * Event Tickets' ticket list in the event editor calls this when it exists
+     * and shows "Free" when it does not — or when it is 0.
+     *
+     * @param int|WP_Post|WC_Product $product
+     * @return string|false The price, or false for something that is not a ticket product.
+     */
+    public function get_price_value($product)
+    {
+        $product = $this->productOf($product);
+
+        return $product instanceof WC_Product ? $product->get_price() : false;
+    }
+
+    /**
+     * A ticket's price formatted by WooCommerce (currency, decimals, a struck-
+     * through regular price during a sale).
+     *
+     * @param int|WP_Post|WC_Product $product
+     * @param array<string, mixed>|false $attendee
+     * @return string
+     */
+    public function get_price_html($product, $attendee = false)
+    {
+        $product = $this->productOf($product);
+
+        return $product instanceof WC_Product ? (string) $product->get_price_html() : '';
+    }
+
+    /**
+     * @param mixed $product
+     */
+    private function productOf($product): ?WC_Product
+    {
+        if ($product instanceof WC_Product) {
+            return $product;
+        }
+        $id = $product instanceof WP_Post ? $product->ID : (is_numeric($product) ? (int) $product : 0);
+
+        return $id > 0 && $this->products->eventFor($id) > 0 ? $this->shop->product($id) : null;
+    }
+
+    /**
      * Shared capacity ("global stock") is supported.
      *
      * @return bool
