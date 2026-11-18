@@ -117,6 +117,10 @@ it('renders a fieldset per attendee with every field type', function (): void {
 
     $html = $this->page->render();
 
+    expect(array_column(WpState::$enqueued, 'handle'))->toContain('tickets-sharp-attendees')
+        ->and(is_readable(TICKETS_SHARP_DIR . 'assets/css/attendees.css'))->toBeTrue()
+        ->and($html)->toContain('<p class="tsharp-attendees__submit">');
+
     expect($html)->toContain('<form class="tsharp-attendees"')
         ->toContain('name="tsharp_attendees" value="nonce-tsharp_attendees"')
         ->toContain('<h3>Adult</h3>')

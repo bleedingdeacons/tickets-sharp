@@ -36,7 +36,7 @@ Requires Event Tickets and WooCommerce. The Events Calendar is optional but expe
 
 = Where do I set attendee information fields? =
 
-In the ticket form, in the "Attendee information" box under Capacity: one field per line, `Label | type | required | Option A, Option B`. New tickets ask for each attendee's name by default.
+In the ticket form, in the "Attendee information" box under Capacity: one field per line, `Label | type | required | Option A, Option B`. New tickets ask for each attendee's name and email by default, and each attendee is sent their own ticket.
 
 = When are tickets e-mailed? =
 
