@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use BleedingDeacons\WpMocks\WpState;
 use Brain\Monkey\Functions;
+use TicketsSharp\Attendees\FieldSet;
 use TicketsSharp\Attendees\Ledger;
 use TicketsSharp\Commerce\TicketProducts;
 use TicketsSharp\Integration\EventTickets;
@@ -169,6 +170,51 @@ it('gives up when WooCommerce does not save the product', function (): void {
     $this->shop->shouldReceive('newTicketProduct')->andReturn($product);
 
     expect($this->products->save(10, ticketObject(), []))->toBe(0);
+});
+
+describe('attendee information from the ticket form', function (): void {
+    it('saves the fields posted with the ticket', function (): void {
+        $this->products->saveAttendeeFields(5, ['tsharp_attendee_fields' => "Name | name | required\nDiet | select | optional | Veg"], true);
+
+        expect(WpState::$postMeta[5][Keys::PRODUCT_FIELDS])->toHaveCount(2)
+            ->and(WpState::$postMeta[5][Keys::PRODUCT_FIELDS][1]['options'])->toBe(['Veg']);
+    });
+
+    it('asks nothing when the box is emptied', function (): void {
+        WpState::$postMeta[5][Keys::PRODUCT_FIELDS] = FieldSet::fromText('Name | name');
+
+        $this->products->saveAttendeeFields(5, ['tsharp_attendee_fields' => "  \n"], true);
+
+        expect(WpState::$postMeta[5])->not->toHaveKey(Keys::PRODUCT_FIELDS);
+    });
+
+    it('gives a new ticket from a form without the box the default: the name', function (): void {
+        $this->products->saveAttendeeFields(5, [], false);
+
+        expect(WpState::$postMeta[5][Keys::PRODUCT_FIELDS])->toBe([
+            ['key' => 'name', 'label' => 'Name', 'type' => 'name', 'required' => true, 'options' => []],
+        ]);
+    });
+
+    it('leaves an existing ticket\'s fields alone when the form has no box', function (): void {
+        WpState::$postMeta[5][Keys::PRODUCT_FIELDS] = FieldSet::fromText('Diet | text');
+
+        $this->products->saveAttendeeFields(5, ['tsharp_attendee_fields' => ['not text']], true);
+        expect(WpState::$postMeta[5])->not->toHaveKey(Keys::PRODUCT_FIELDS);
+
+        WpState::$postMeta[5][Keys::PRODUCT_FIELDS] = FieldSet::fromText('Diet | text');
+        $this->products->saveAttendeeFields(5, [], true);
+        expect(WpState::$postMeta[5][Keys::PRODUCT_FIELDS][0]['label'])->toBe('Diet');
+    });
+
+    it('stores them as part of saving the ticket', function (): void {
+        $this->shop->shouldReceive('newTicketProduct')->andReturn(Make::product(0));
+        $this->eventTickets->shouldReceive('setTicketCapacity');
+
+        $id = $this->products->save(10, ticketObject(), ['tsharp_attendee_fields' => 'Email | email | required']);
+
+        expect(WpState::$postMeta[$id][Keys::PRODUCT_FIELDS][0]['type'])->toBe('email');
+    });
 });
 
 it('trashes a ticket product and remembers its event', function (): void {

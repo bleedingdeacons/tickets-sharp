@@ -12,7 +12,7 @@ if (! defined('ABSPATH')) {
  * Attendee information fields: what a ticket asks of each attendee.
  *
  * Stored per ticket product as a list of definitions. An admin edits them as
- * plain lines on the product's "Attendee information" tab, one field per line:
+ * plain lines in the ticket form's "Attendee information" box, one field per line:
  *
  *     Label | type | required | Option A, Option B
  *

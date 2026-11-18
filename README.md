@@ -30,9 +30,10 @@ gateway, coupon or tax setup the shop already has.
 - **Shared capacity.** Event Tickets' shared ("global") and capped capacity modes work, including
   across tickets bought together in one basket.
 - **Attendee information.** Each ticket can ask every attendee for a name, an email address, a
-  phone number, text, a choice from a list or a checkbox. The fields are set on the ticket
-  product's "Attendee information" tab. Buyers fill them in on an attendee details page between the
-  cart and the checkout. The answers show in the Attendees list, the CSV export and on the order.
+  phone number, text, a choice from a list or a checkbox. The fields are set in the ticket form's
+  **Attendee information** box, under Capacity; a new ticket asks for each attendee's name by
+  default. Buyers fill them in on an attendee details page between the cart and the checkout. The
+  answers show in the Attendees list, the CSV export and on the order.
 - **QR check-in.** Each ticket e-mail carries a QR code encoding Event Tickets' check-in link.
   Scanning it while signed in as an event manager checks the attendee in. The Event Tickets app
   reads the same codes. Only paid attendees can be checked in.
@@ -54,8 +55,10 @@ gateway, coupon or tax setup the shop already has.
    details** page holding the `[tickets_sharp_attendees]` shortcode.
 2. On an event, add tickets in the Tickets section and choose **WooCommerce** as the provider
    (Event Tickets only shows the choice when more than one provider is active).
-3. Optionally, open the ticket's product and fill in its **Attendee information** tab, one field
-   per line: `Label | type | required | Option A, Option B`.
+3. In the same ticket form, the **Attendee information** box says what to ask each attendee, one
+   field per line: `Label | type | required | Option A, Option B`. New tickets start with
+   `Name | name | required`; empty the box to ask nothing. (The block editor's ticket form has no
+   such box: tickets made there get the default, and can be changed in the classic form.)
 4. Settings live under **WooCommerce › Settings › Products › Event tickets**:
    - which order statuses issue tickets;
    - how long unpaid orders hold their seats;
