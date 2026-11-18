@@ -62,6 +62,7 @@ it('registers the provider, its statuses, repositories and hooks', function (): 
     $this->assertFilterAdded('tec_tickets_completed_status_by_provider_name');
     $this->assertFilterAdded('woocommerce_product_data_tabs');
     $this->assertFilterAdded('tec_tickets_admin_tickets_table_query_args');
+    $this->assertActionAdded('woocommerce_email_after_order_table');
 });
 
 it('leaves the admin screens out of front-end requests', function (): void {

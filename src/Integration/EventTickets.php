@@ -93,20 +93,28 @@ class EventTickets
     }
 
     /**
-     * A URL for a PNG QR code of $link, or '' when Event Tickets' QR library is
-     * absent. Event Tickets writes the image under uploads/ and reuses it, so a
-     * mail client that blocks `data:` images (most of them) still shows it.
+     * Writes a PNG QR code of $link under uploads/tec-tickets-qr/ and returns
+     * its URL, or '' when Event Tickets' QR library is absent.
+     *
+     * A hosted image rather than a `data:` URI, because most mail clients
+     * block those. Generated through Event Tickets' own QR library, but on a
+     * copy of its shared instance at twice its default module size: the
+     * default makes an image so small it blurs when an e-mail shows it at a
+     * scannable size. `wp_upload_bits()` never overwrites, so a caller should
+     * keep the URL rather than ask again ({@see \TicketsSharp\CheckIn\QrCode}).
      */
-    public function qrImageUrl(string $link): string
+    public function qrImageUrl(string $link, string $name): string
     {
-        if ($link === '' || ! class_exists(\TEC\Tickets\QR\Connector::class)) {
+        if ($link === '' || ! class_exists(\TEC\Common\QR\QR::class)) {
             return '';
         }
 
-        /** @var \TEC\Tickets\QR\Connector $connector */
-        $connector = tribe(\TEC\Tickets\QR\Connector::class);
+        /** @var \TEC\Common\QR\QR $shared */
+        $shared = tribe(\TEC\Common\QR\QR::class);
+        $qr = clone $shared;
+        $upload = $qr->size(6)->margin(2)->get_png_as_file($link, $name, 'tec-tickets-qr');
 
-        return (string) $connector->get_image_url_for_link($link);
+        return empty($upload['error']) && is_string($upload['url'] ?? null) ? $upload['url'] : '';
     }
 
     public function isEvent(int $postId): bool

@@ -138,6 +138,18 @@ class TicketImage
      */
     public function row(int $eventId): string
     {
+        $image = $this->imageTag($eventId);
+
+        return $image === ''
+            ? ''
+            : '<tr><td style="padding:0" class="tec-tickets__email-table-content-event-image-container tsharp-ticket-image">' . $image . '</td></tr>';
+    }
+
+    /**
+     * An `<img>` of the event's ticket image, or '' when it has none.
+     */
+    public function imageTag(int $eventId): string
+    {
         $imageId = $this->imageId($eventId);
         if ($imageId <= 0) {
             return '';
@@ -151,9 +163,7 @@ class TicketImage
         $alt = get_post_meta($imageId, '_wp_attachment_image_alt', true);
         $alt = is_string($alt) && $alt !== '' ? $alt : (string) get_the_title($eventId);
 
-        return '<tr><td style="padding:0" class="tec-tickets__email-table-content-event-image-container tsharp-ticket-image">'
-            . '<img class="tec-tickets__email-table-content-event-image" style="display:block;max-width:100%;height:auto;" src="' . esc_url($url) . '" alt="' . esc_attr($alt) . '" />'
-            . '</td></tr>';
+        return '<img class="tec-tickets__email-table-content-event-image tsharp-ticket-image__img" style="display:block;max-width:100%;height:auto;" src="' . esc_url($url) . '" alt="' . esc_attr($alt) . '" />';
     }
 
     public function imageId(int $eventId): int

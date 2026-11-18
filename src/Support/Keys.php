@@ -43,6 +43,8 @@ final class Keys
     public const ATTENDEE_ACTIVITY_LOG = '_tsharp_activity_log';
     public const ATTENDEE_PRICE_PAID = '_tsharp_price_paid';
     public const ATTENDEE_CURRENCY = '_tsharp_price_currency';
+    /** The attendee's QR image: ['code' => security code it encodes, 'url' => image URL]. */
+    public const ATTENDEE_QR_IMAGE = '_tsharp_qr_image';
 
     // Shared with Event Tickets' generic attendee keys, which its own
     // repositories and e-mail templates already read.

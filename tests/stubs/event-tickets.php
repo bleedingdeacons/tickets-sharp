@@ -937,6 +937,38 @@ namespace {
     }
 }
 
+namespace TEC\Common\QR {
+    if (! class_exists(QR::class)) {
+        class QR
+        {
+            public int $size = 3;
+            public int $margin = 4;
+
+            public function size(int $value): self
+            {
+                $this->size = $value;
+
+                return $this;
+            }
+
+            public function margin(int $value): self
+            {
+                $this->margin = $value;
+
+                return $this;
+            }
+
+            /**
+             * @return array{file: string, url: string, type: string, error: string|false}
+             */
+            public function get_png_as_file(string $data, string $name, string $folder = 'tec-qr-codes'): array
+            {
+                return ['file' => '', 'url' => '', 'type' => 'image/png', 'error' => false];
+            }
+        }
+    }
+}
+
 namespace TEC\Tickets\QR {
     if (! class_exists(Connector::class)) {
         class Connector
