@@ -343,6 +343,31 @@ describe('check-in', function (): void {
     });
 });
 
+describe('prices for Event Tickets\' screens', function (): void {
+    it('gives the ticket list a price, so it does not say Free', function (): void {
+        $parts = Make::provider();
+        $product = Make::product(5, ['price' => '18']);
+        $parts['products']->shouldReceive('eventFor')->with(5)->andReturn(10);
+        $parts['products']->shouldReceive('eventFor')->with(6)->andReturn(0);
+        $parts['shop']->shouldReceive('product')->with(5)->andReturn($product);
+
+        expect($parts['provider']->get_price_value(5))->toBe('18')
+            ->and($parts['provider']->get_price_value(TestPost::add(5, 'product')))->toBe('18')
+            ->and($parts['provider']->get_price_value($product))->toBe('18')
+            ->and($parts['provider']->get_price_value(6))->toBeFalse()
+            ->and($parts['provider']->get_price_value('x'))->toBeFalse();
+    });
+
+    it('formats the price through WooCommerce', function (): void {
+        $parts = Make::provider();
+        $parts['products']->shouldReceive('eventFor')->andReturnUsing(static fn (int $id): int => $id === 5 ? 10 : 0);
+        $parts['shop']->shouldReceive('product')->with(5)->andReturn(Make::product(5, ['price' => '18']));
+
+        expect($parts['provider']->get_price_html(5))->toContain('£18.00')->toContain('<bdi>')
+            ->and($parts['provider']->get_price_html(6))->toBe('');
+    });
+});
+
 describe('classic ticket form capacity', function (): void {
     beforeEach(function (): void {
         $this->handler = Mockery::mock(Tribe__Tickets__Tickets_Handler::class);

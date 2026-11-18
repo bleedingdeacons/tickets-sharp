@@ -173,6 +173,12 @@ namespace {
                 return (string) ($this->props['sku'] ?? '');
             }
 
+            /** @return string */
+            public function get_price_html()
+            {
+                return '<span class="woocommerce-Price-amount amount"><bdi>£' . number_format((float) $this->get_price(), 2) . '</bdi></span>';
+            }
+
             /** @param string $context */
             public function is_on_sale($context = 'view'): bool
             {
