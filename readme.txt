@@ -3,8 +3,8 @@ Contributors: thebleedingdeacons
 Tags: event tickets, woocommerce, events, tickets, attendees
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 0.4.0
-Build date: 2026/11/18 23:14:50
+Stable tag: 0.4.1
+Build date: 2026/11/19 00:31:56
 Requires PHP: 8.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
