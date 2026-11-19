@@ -32,9 +32,9 @@ class TicketFormFields
 
     /**
      * What a new ticket asks of each attendee: a name for the ticket and an
-     * address to send it to — every ticket is e-mailed on its own to that
-     * address ({@see \TicketsSharp\Orders\Mailer}), and the buyer has them all
-     * in the WooCommerce order e-mail.
+     * address to send it to — with the email required, each attendee is sent
+     * their own ticket there, as well as the buyer getting all of them
+     * ({@see \TicketsSharp\Orders\Mailer}).
      */
     public const DEFAULT_TEXT = "Name | name | required\nEmail | email | required";
 
