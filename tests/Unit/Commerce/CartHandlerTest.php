@@ -209,17 +209,31 @@ it('registers its hooks and URLs', function (): void {
     $this->assertActionAdded('template_redirect');
     $this->assertActionAdded('wp_ajax_tsharp_basket');
     $this->assertActionAdded('wp_ajax_nopriv_tsharp_basket');
+    $this->assertFilterAdded('tribe_template_path_list');
+    $this->assertFilterAdded('tribe_template_file');
     expect($this->handler->cartUrls([]))->toBe([Provider::class => 'https://example.test/?tsharp_cart=1'])
         ->and($this->handler->checkoutUrls(['x' => 'y']))->toBe(['x' => 'y', Provider::class => 'https://example.test/checkout/'])
         ->and($this->handler->cartUrls('nope'))->toBe('nope')
         ->and($this->handler->checkoutUrls('nope'))->toBe('nope');
 });
 
-it('supplies the provider fields template to the tickets form', function (): void {
-    expect($this->handler->fieldsTemplate(false, ['v2', 'tickets', 'commerce', 'fields', 'tickets-sharp']))->toBe(TICKETS_SHARP_DIR . 'views/tickets-form-fields.php')
+it('adds its template folder, where Event Tickets finds the provider fields', function (): void {
+    $folders = $this->handler->templateFolders(['tickets' => ['id' => 'tickets', 'priority' => 20, 'path' => '/et/src/views']]);
+    $folder = $folders['tickets-sharp'];
+
+    expect($folders)->toHaveKey('tickets')
+        ->and($folder['priority'])->toBe(25)
+        // Event Tickets joins the folder and the template name, then adds .php.
+        ->and(is_readable($folder['path'] . '/' . CartHandler::FIELDS_TEMPLATE . '.php'))->toBeTrue()
+        ->and($this->handler->templateFolders('nope'))->toBe('nope');
+});
+
+it('loads the basket script with its fields, whichever file supplies them', function (): void {
+    Functions\expect('wp_enqueue_script')->once()->with('tickets-sharp-basket', Mockery::type('string'), ['jquery'], Mockery::any(), true);
+
+    expect($this->handler->fieldsTemplate('/theme/tickets-sharp.php', ['v2', 'tickets', 'commerce', 'fields', 'tickets-sharp']))->toBe('/theme/tickets-sharp.php')
         ->and($this->handler->fieldsTemplate('/x.php', 'v2/tickets/commerce/fields/tribe-commerce'))->toBe('/x.php')
-        ->and($this->handler->fieldsTemplate('/x.php', null))->toBe('/x.php')
-        ->and(is_readable(TICKETS_SHARP_DIR . 'views/tickets-form-fields.php'))->toBeTrue();
+        ->and($this->handler->fieldsTemplate('/x.php', null))->toBe('/x.php');
 });
 
 it('does nothing on other requests', function (): void {

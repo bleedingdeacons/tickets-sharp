@@ -46,6 +46,7 @@ class CartHandler
     }
 
     public const BASKET_ACTION = 'tsharp_basket';
+    public const FIELDS_TEMPLATE = 'v2/tickets/commerce/fields/' . Keys::ORM_PROVIDER;
 
     public function register(): void
     {
@@ -54,6 +55,7 @@ class CartHandler
         add_action('wp_ajax_nopriv_' . self::BASKET_ACTION, [$this, 'basketResponse']);
         add_filter('tribe_tickets_cart_urls', [$this, 'cartUrls']);
         add_filter('tribe_tickets_checkout_urls', [$this, 'checkoutUrls']);
+        add_filter('tribe_template_path_list', [$this, 'templateFolders']);
         add_filter('tribe_template_file', [$this, 'fieldsTemplate'], 10, 3);
     }
 
@@ -289,8 +291,35 @@ class CartHandler
     }
 
     /**
+     * Lets Event Tickets find this plugin's templates in views/event-tickets.
+     *
      * Event Tickets includes `v2/tickets/commerce/fields/{orm_provider}` inside
-     * the form; supply ours from this plugin's views/.
+     * the form, but only from a file it finds in its template folders —
+     * `tribe_template_file` is applied to a file already found, never to a
+     * missing one — so the folder has to be on its list.
+     *
+     * @param mixed $folders
+     * @return mixed
+     */
+    public function templateFolders($folders)
+    {
+        if (! is_array($folders)) {
+            return $folders;
+        }
+
+        $folders[Keys::ORM_PROVIDER] = [
+            'id' => Keys::ORM_PROVIDER,
+            'priority' => 25,
+            'path' => TICKETS_SHARP_DIR . 'views/event-tickets',
+        ];
+
+        return $folders;
+    }
+
+    /**
+     * Loads the script that fills the form from the basket whenever the form
+     * includes this provider's fields (the file found is ours, or a theme's
+     * override of it).
      *
      * @param mixed $file
      * @param mixed $name
@@ -300,13 +329,11 @@ class CartHandler
     public function fieldsTemplate($file, $name, $template = null)
     {
         $path = is_array($name) ? implode('/', $name) : (is_string($name) ? $name : '');
-        if ($path !== 'v2/tickets/commerce/fields/' . Keys::ORM_PROVIDER) {
-            return $file;
+        if ($path === self::FIELDS_TEMPLATE) {
+            wp_enqueue_script('tickets-sharp-basket', TICKETS_SHARP_URL . 'assets/js/basket.js', ['jquery'], TICKETS_SHARP_VERSION, true);
         }
 
-        wp_enqueue_script('tickets-sharp-basket', TICKETS_SHARP_URL . 'assets/js/basket.js', ['jquery'], TICKETS_SHARP_VERSION, true);
-
-        return TICKETS_SHARP_DIR . 'views/tickets-form-fields.php';
+        return $file;
     }
 
     /**
