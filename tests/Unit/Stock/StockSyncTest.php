@@ -29,6 +29,32 @@ it('listens for attendee and ticket changes', function (): void {
 
     $this->assertActionAdded('tickets_sharp/attendees_changed');
     $this->assertActionAdded('tickets_sharp/ticket_saved');
+    $this->assertActionAdded('woocommerce_update_product');
+});
+
+it('restores stock after WooCommerce saves a ticket product', function (): void {
+    // WooCommerce's validate_props() blanks _stock for a product it is told
+    // does not manage stock, which is what ticket products report.
+    WpState::$postMeta[5]['_stock'] = '';
+    WpState::$postMeta[5]['_tsharp_for_event'] = '10';
+    $this->provider->shouldReceive('get_tickets_ids')->with(10)->andReturn([5]);
+    $this->shared->shouldReceive('sync')->once()->with(10, [5]);
+    $this->shared->shouldReceive('remaining')->with(10, [5])->andReturn(-1);
+    $this->ledger->shouldReceive('seatHolders')->with(5)->andReturn([TestPost::attendee(1)]);
+    $this->eventTickets->shouldReceive('clearTicketCaches')->once()->with(10);
+
+    $this->sync->syncProduct(5);
+
+    expect(WpState::$postMeta[5])->toMatchArray(['_stock' => 9, '_stock_status' => 'instock']);
+});
+
+it('leaves products that are not tickets alone', function (): void {
+    $this->provider->shouldNotReceive('get_tickets_ids');
+
+    $this->sync->syncProduct(6);
+    $this->sync->syncProduct('x');
+
+    expect(WpState::$postMeta[6])->not->toHaveKey('_stock');
 });
 
 it('recomputes stock from seats held, within the shared pool', function (): void {
