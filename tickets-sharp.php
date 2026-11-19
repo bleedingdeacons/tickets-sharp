@@ -3,7 +3,7 @@
 /**
  * Plugin Name:       Tickets Sharp
  * Description:       Sell Event Tickets tickets through WooCommerce. Each ticket is a WooCommerce product paid through the normal cart and checkout, with attendees, shared capacity, attendee information fields, QR check-in and refund/cancel sync.
- * Version:           0.4.1
+ * Version:           0.4.2
  * Requires at least: 6.9
  * Requires PHP:      8.4
  * Requires Plugins:  event-tickets, woocommerce
