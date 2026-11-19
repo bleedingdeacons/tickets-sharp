@@ -65,6 +65,9 @@ final class Keys
     public const CART_EVENT = 'tsharp_event_id';
     public const CART_ATTENDEES = 'tsharp_attendees';
 
+    // WooCommerce session: answers of tickets taken out of the basket, by product ID.
+    public const SESSION_SET_ASIDE = 'tsharp_set_aside_attendees';
+
     // Ticket product meta.
     public const PRODUCT_FIELDS = '_tsharp_attendee_fields';
 

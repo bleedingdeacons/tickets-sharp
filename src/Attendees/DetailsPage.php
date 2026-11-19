@@ -24,6 +24,13 @@ if (! defined('ABSPATH')) {
  * line when the order is created. Checkout is refused until every ticket has
  * valid answers — if a quantity changes in the cart, the buyer is sent back.
  *
+ * Nothing a buyer enters is thrown away while they change their mind. When a
+ * quantity goes down, the answers of the attendees left out stay on the cart
+ * line (unused, and not copied to the order) and come back if it goes up
+ * again. When a ticket leaves the basket its answers are set aside in the
+ * WooCommerce session and restored if it is added again; checking out clears
+ * them.
+ *
  * Doing this before checkout, rather than as checkout fields, is what makes it
  * work with the block checkout, whose extension API has no repeating fields.
  *
@@ -49,6 +56,85 @@ class DetailsPage
         add_action('woocommerce_store_api_cart_errors', [$this, 'storeApiErrors'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [$this, 'copyToOrderItem'], 10, 4);
         add_filter('woocommerce_get_item_data', [$this, 'itemData'], 10, 2);
+        add_action('woocommerce_remove_cart_item', [$this, 'setAside'], 10, 2);
+        add_action('woocommerce_add_to_cart', [$this, 'restore'], 10, 2);
+        add_action('woocommerce_cart_emptied', [$this, 'forgetSetAside']);
+    }
+
+    /**
+     * Keeps the answers of a ticket taken out of the basket.
+     *
+     * @param mixed $cartItemKey
+     * @param mixed $cart
+     */
+    public function setAside($cartItemKey, $cart = null): void
+    {
+        $cart = $cart instanceof WC_Cart ? $cart : $this->shop->cart();
+        $item = $cart instanceof WC_Cart && is_string($cartItemKey) ? ($cart->cart_contents[$cartItemKey] ?? null) : null;
+        if (! is_array($item)) {
+            return;
+        }
+
+        $productId = is_numeric($item['product_id'] ?? null) ? (int) $item['product_id'] : 0;
+        $answers = self::answers($item[Keys::CART_ATTENDEES] ?? []);
+        if ($productId <= 0 || $answers === []) {
+            return;
+        }
+
+        $setAside = $this->setAsideAnswers();
+        $setAside[$productId] = $answers;
+        $this->shop->sessionSet(Keys::SESSION_SET_ASIDE, $setAside);
+    }
+
+    /**
+     * Gives a ticket added to the basket the answers set aside when it was
+     * taken out, unless its line already has answers of its own.
+     *
+     * @param mixed $cartItemKey
+     * @param mixed $productId
+     */
+    public function restore($cartItemKey, $productId = 0): void
+    {
+        $productId = is_numeric($productId) ? (int) $productId : 0;
+        $setAside = $this->setAsideAnswers();
+        $cart = $this->shop->cart();
+        if (! isset($setAside[$productId]) || ! is_string($cartItemKey) || ! $cart instanceof WC_Cart || ! isset($cart->cart_contents[$cartItemKey])) {
+            return;
+        }
+
+        if (self::answers($cart->cart_contents[$cartItemKey][Keys::CART_ATTENDEES] ?? []) === []) {
+            $cart->cart_contents[$cartItemKey][Keys::CART_ATTENDEES] = $setAside[$productId];
+        }
+
+        unset($setAside[$productId]);
+        $this->shop->sessionSet(Keys::SESSION_SET_ASIDE, $setAside === [] ? null : $setAside);
+    }
+
+    public function forgetSetAside(): void
+    {
+        if ($this->setAsideAnswers() !== []) {
+            $this->shop->sessionSet(Keys::SESSION_SET_ASIDE, null);
+        }
+    }
+
+    /**
+     * @return array<int, list<array<string, string>>>
+     */
+    private function setAsideAnswers(): array
+    {
+        $raw = $this->shop->sessionGet(Keys::SESSION_SET_ASIDE);
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $setAside = [];
+        foreach ($raw as $productId => $answers) {
+            if (is_numeric($productId) && (int) $productId > 0) {
+                $setAside[(int) $productId] = self::answers($answers);
+            }
+        }
+
+        return $setAside;
     }
 
     /**
@@ -130,6 +216,9 @@ class DetailsPage
                     $errors[] = sprintf(__('%1$s, attendee %2$d: %3$s', 'tickets-sharp'), $item['name'], $i + 1, $error);
                 }
             }
+
+            // Answers for attendees beyond the quantity wait for it to go up again.
+            $answers = array_merge($answers, array_slice($item['answers'], $item['quantity']));
 
             $cart->cart_contents[$item['key']][Keys::CART_ATTENDEES] = $answers;
         }
@@ -256,7 +345,7 @@ class DetailsPage
             $item->add_meta_data(Keys::ITEM_EVENT, (int) $values[Keys::CART_EVENT], true);
         }
         if (isset($values[Keys::CART_ATTENDEES]) && is_array($values[Keys::CART_ATTENDEES])) {
-            $item->add_meta_data(Keys::ITEM_ATTENDEES, self::answers($values[Keys::CART_ATTENDEES]), true);
+            $item->add_meta_data(Keys::ITEM_ATTENDEES, self::bought($values), true);
         }
     }
 
@@ -276,7 +365,7 @@ class DetailsPage
         $productId = is_numeric($cartItem['product_id'] ?? null) ? (int) $cartItem['product_id'] : 0;
         $fields = FieldSet::parse(get_post_meta($productId, Keys::PRODUCT_FIELDS, true));
         $names = [];
-        foreach (self::answers($cartItem[Keys::CART_ATTENDEES]) as $answers) {
+        foreach (self::bought($cartItem) as $answers) {
             $name = FieldSet::holderName($fields, $answers);
             if ($name !== '') {
                 $names[] = $name;
@@ -345,6 +434,21 @@ class DetailsPage
         };
 
         return $html . '<input type="' . $type . '" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . $autocomplete . $required . '></p>';
+    }
+
+    /**
+     * A cart line's answers for the attendees actually in it, leaving out any
+     * kept from when its quantity was higher.
+     *
+     * @param array<mixed, mixed> $cartItem
+     * @return list<array<string, string>>
+     */
+    private static function bought(array $cartItem): array
+    {
+        $answers = self::answers($cartItem[Keys::CART_ATTENDEES] ?? []);
+        $quantity = is_numeric($cartItem['quantity'] ?? null) ? (int) $cartItem['quantity'] : count($answers);
+
+        return array_slice($answers, 0, max(0, $quantity));
     }
 
     /**

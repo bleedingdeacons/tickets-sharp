@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Brain\Monkey\Actions;
+use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use TicketsSharp\Attendees\DetailsPage;
 use TicketsSharp\Commerce\CartHandler;
@@ -47,7 +48,103 @@ it('decodes the tickets form', function (): void {
         ['ticket_id' => 0, 'quantity' => 3],
         ['ticket_id' => 7, 'quantity' => 5000],
         'junk',
-    ])))->toBe(['event' => 10, 'tickets' => [5 => 3, 7 => 1000]]);
+    ])))->toBe(['event' => 10, 'tickets' => [5 => 3, 6 => 0, 7 => 1000]]);
+});
+
+function basketPost(int $event, array $tickets): array
+{
+    return formPost($event, $tickets) + ['tsharp_basket' => '1'];
+}
+
+function basketLine(WC_Cart $cart, int $productId, int $quantity, array $answers = []): string
+{
+    $key = 'line-' . $productId;
+    $cart->cart_contents[$key] = ['product_id' => $productId, 'quantity' => $quantity, Keys::CART_EVENT => 10]
+        + ($answers !== [] ? [Keys::CART_ATTENDEES => $answers] : []);
+
+    return $key;
+}
+
+it('reports what the basket holds for one event', function (): void {
+    basketLine($this->cart, 5, 2);
+    $this->cart->cart_contents['other'] = ['product_id' => 8, 'quantity' => 1, Keys::CART_EVENT => 11];
+    $this->cart->cart_contents['plain'] = ['product_id' => 9, 'quantity' => 4];
+
+    expect($this->handler->basketFor(10))->toBe([5 => 2])
+        ->and($this->handler->basketFor(11))->toBe([8 => 1])
+        ->and($this->handler->basketFor(0))->toBe([]);
+});
+
+it('answers the basket request with the event\'s tickets', function (): void {
+    basketLine($this->cart, 5, 2);
+    $_POST['event'] = '10';
+    Functions\expect('wp_send_json_success')->once()->with(Mockery::on(
+        static fn ($data): bool => $data['tickets'] == (object) [5 => 2]
+    ));
+
+    $this->handler->basketResponse();
+    unset($_POST['event']);
+});
+
+it('adds attendees when a basket quantity goes up, keeping those already entered', function (): void {
+    $key = basketLine($this->cart, 5, 2, [['name' => 'Ann'], ['name' => 'Bob']]);
+    $this->details->shouldReceive('itemsNeedingFields')->with($this->cart)->andReturn([['key' => $key]]);
+    Actions\expectDone('tickets_sharp/basket_changed')->once()->with(10, [5 => 3]);
+
+    $url = $this->handler->handle(basketPost(10, [['ticket_id' => 5, 'quantity' => 3], ['ticket_id' => 6, 'quantity' => 0]]));
+
+    expect($url)->toBe('https://example.test/attendee-details/')
+        ->and($this->cart->cart_contents[$key]['quantity'])->toBe(3)
+        ->and($this->cart->cart_contents[$key][Keys::CART_ATTENDEES])->toBe([['name' => 'Ann'], ['name' => 'Bob']])
+        ->and($this->cart->added)->toBe([])
+        ->and($this->cart->sessionSaves)->toBe(1);
+});
+
+it('leaves out the last attendees when a basket quantity goes down, keeping their answers', function (): void {
+    $key = basketLine($this->cart, 5, 3, [['name' => 'Ann'], ['name' => 'Bob'], ['name' => 'Cat']]);
+    $this->details->shouldReceive('itemsNeedingFields')->andReturn([['key' => $key]]);
+
+    expect($this->handler->handle(basketPost(10, [['ticket_id' => 5, 'quantity' => 1]])))->toBe('https://example.test/attendee-details/')
+        ->and($this->cart->cart_contents[$key]['quantity'])->toBe(1)
+        ->and($this->cart->cart_contents[$key][Keys::CART_ATTENDEES])->toBe([['name' => 'Ann'], ['name' => 'Bob'], ['name' => 'Cat']]);
+});
+
+it('takes a ticket out of the basket at zero and adds one that was not there', function (): void {
+    basketLine($this->cart, 5, 2);
+    $this->details->shouldReceive('itemsNeedingFields')->andReturn([]);
+    Actions\expectDone('tickets_sharp/basket_changed')->once()->with(10, [5 => 0, 6 => 1]);
+
+    expect($this->handler->handle(basketPost(10, [['ticket_id' => 5, 'quantity' => 0], ['ticket_id' => 6, 'quantity' => 1]])))->toBe('https://example.test/checkout/')
+        ->and($this->cart->cart_contents)->not->toHaveKey('line-5')
+        ->and($this->cart->added)->toBe([[6, 1, [Keys::CART_EVENT => 10]]]);
+});
+
+it('keeps a basket quantity that capacity refuses', function (): void {
+    $key = basketLine($this->cart, 5, 2);
+    $this->details->shouldReceive('itemsNeedingFields')->andReturn([]);
+    Filters\expectApplied('woocommerce_update_cart_validation')->once()->with(true, $key, Mockery::type('array'), 9)->andReturn(false);
+    Actions\expectDone('tickets_sharp/basket_changed')->never();
+
+    $this->handler->handle(basketPost(10, [['ticket_id' => 5, 'quantity' => 9]]));
+
+    expect($this->cart->cart_contents[$key]['quantity'])->toBe(2);
+});
+
+it('goes back to the event once nothing of it is left in the basket', function (): void {
+    basketLine($this->cart, 5, 1);
+    $this->details->shouldReceive('itemsNeedingFields')->never();
+
+    expect($this->handler->handle(basketPost(10, [['ticket_id' => 5, 'quantity' => 0], ['ticket_id' => 99, 'quantity' => 4]])))->toBe('https://example.test/?p=10')
+        ->and($this->cart->cart_contents)->toBe([]);
+});
+
+it('adds rather than replaces when the form was not filled from the basket', function (): void {
+    basketLine($this->cart, 5, 2);
+
+    $this->handler->handle(formPost(10, [['ticket_id' => 5, 'quantity' => 1], ['ticket_id' => 6, 'quantity' => 0]]));
+
+    expect($this->cart->added)->toBe([[5, 1, [Keys::CART_EVENT => 10]]])
+        ->and($this->cart->cart_contents['line-5']['quantity'])->toBe(2);
 });
 
 it('decodes an empty or broken post to nothing', function (): void {
@@ -110,6 +207,8 @@ it('registers its hooks and URLs', function (): void {
     $this->handler->register();
 
     $this->assertActionAdded('template_redirect');
+    $this->assertActionAdded('wp_ajax_tsharp_basket');
+    $this->assertActionAdded('wp_ajax_nopriv_tsharp_basket');
     expect($this->handler->cartUrls([]))->toBe([Provider::class => 'https://example.test/?tsharp_cart=1'])
         ->and($this->handler->checkoutUrls(['x' => 'y']))->toBe(['x' => 'y', Provider::class => 'https://example.test/checkout/'])
         ->and($this->handler->cartUrls('nope'))->toBe('nope')

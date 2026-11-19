@@ -24,6 +24,13 @@ if (! defined('ABSPATH')) {
  * including {@see Availability} — runs as usual), and the buyer goes on to the
  * attendee details page if a ticket needs it, otherwise straight to checkout.
  *
+ * Coming back to the event page shows what the basket already holds:
+ * `assets/js/basket.js` asks {@see basketFor()} (through admin-ajax, since the
+ * page itself may be cached) and fills the quantities in. A form filled that
+ * way posts `tsharp_basket=1`, and its quantities then *replace* the basket's
+ * for this event rather than adding to it, so the buyer can add or remove
+ * tickets and the attendee details page gains or loses attendees to match.
+ *
  * There is no nonce: the form is rendered into event pages that are often
  * cached, and adding tickets to one's own basket is not a privileged action.
  * Every ticket ID is checked against the posted event before anything is added.
@@ -38,9 +45,13 @@ class CartHandler
     ) {
     }
 
+    public const BASKET_ACTION = 'tsharp_basket';
+
     public function register(): void
     {
         add_action('template_redirect', [$this, 'maybeHandle'], 5);
+        add_action('wp_ajax_' . self::BASKET_ACTION, [$this, 'basketResponse']);
+        add_action('wp_ajax_nopriv_' . self::BASKET_ACTION, [$this, 'basketResponse']);
         add_filter('tribe_tickets_cart_urls', [$this, 'cartUrls']);
         add_filter('tribe_tickets_checkout_urls', [$this, 'checkoutUrls']);
         add_filter('tribe_template_file', [$this, 'fieldsTemplate'], 10, 3);
@@ -77,30 +88,176 @@ class CartHandler
             return $back;
         }
 
+        if (($post['tsharp_basket'] ?? '') === '1' && $eventId > 0) {
+            return $this->replace($cart, $eventId, $request['tickets'], $back);
+        }
+
+        $chosen = array_filter($request['tickets'], static fn (int $quantity): bool => $quantity > 0);
         $added = 0;
-        foreach ($request['tickets'] as $productId => $quantity) {
+        foreach ($chosen as $productId => $quantity) {
             if ($eventId <= 0 || $this->products->eventFor($productId) !== $eventId) {
                 continue;
             }
 
-            $key = $cart->add_to_cart($productId, $quantity, 0, [], [Keys::CART_EVENT => $eventId]);
-            if (is_string($key) && $key !== '') {
+            if ($this->add($cart, $productId, $quantity, $eventId)) {
                 $added += $quantity;
             }
         }
 
         if ($added === 0) {
-            if ($request['tickets'] === []) {
+            if ($chosen === []) {
                 $this->shop->notice(__('Please choose at least one ticket.', 'tickets-sharp'));
             }
             return $back;
         }
 
-        do_action('tickets_sharp/added_to_cart', $eventId, $request['tickets']);
+        do_action('tickets_sharp/added_to_cart', $eventId, $chosen);
 
         $details = $this->urls->detailsPage();
 
         return $details !== '' && $this->details->isIncomplete($cart) ? $details : $this->shop->checkoutUrl();
+    }
+
+    /**
+     * Sets the basket's quantities for one event's tickets to what the form
+     * posted: more adds attendees, fewer leaves the last ones out, and zero
+     * takes the ticket out of the basket. Answers already entered are never
+     * lost. Tickets the form did not post are left alone.
+     *
+     * @param array<int, int> $quantities Product ID => quantity wanted.
+     */
+    private function replace(WC_Cart $cart, int $eventId, array $quantities, string $back): string
+    {
+        $changed = [];
+        foreach ($quantities as $productId => $quantity) {
+            if ($this->products->eventFor($productId) !== $eventId) {
+                continue;
+            }
+
+            $key = self::lineFor($cart, $productId, $eventId);
+            $done = $key === null
+                ? $quantity > 0 && $this->add($cart, $productId, $quantity, $eventId)
+                : $this->setQuantity($cart, $key, $quantity);
+            if ($done) {
+                $changed[$productId] = $quantity;
+            }
+        }
+
+        $cart->set_session();
+
+        if ($changed !== []) {
+            /**
+             * Fires after the event page's form changed the basket.
+             *
+             * @param int             $eventId
+             * @param array<int, int> $changed Product ID => new quantity (0: removed).
+             */
+            do_action('tickets_sharp/basket_changed', $eventId, $changed);
+        }
+
+        if ($this->basketFor($eventId, $cart) === []) {
+            return $back;
+        }
+
+        $details = $this->urls->detailsPage();
+
+        return $details !== '' && $this->details->itemsNeedingFields($cart) !== [] ? $details : $this->shop->checkoutUrl();
+    }
+
+    private function add(WC_Cart $cart, int $productId, int $quantity, int $eventId): bool
+    {
+        $key = $cart->add_to_cart($productId, $quantity, 0, [], [Keys::CART_EVENT => $eventId]);
+
+        return is_string($key) && $key !== '';
+    }
+
+    /**
+     * Changes one basket line's quantity through the same validation as
+     * WooCommerce's own basket page (so capacity is checked). Attendee
+     * answers are left alone: {@see DetailsPage} keeps those beyond the
+     * quantity, and sets a removed line's aside, for if they come back.
+     *
+     * @return bool Whether the line changed.
+     */
+    private function setQuantity(WC_Cart $cart, string $key, int $quantity): bool
+    {
+        $item = $cart->cart_contents[$key];
+        $current = is_numeric($item['quantity'] ?? null) ? (int) $item['quantity'] : 0;
+        if ($quantity === $current) {
+            return false;
+        }
+
+        if ($quantity <= 0) {
+            return (bool) $cart->remove_cart_item($key);
+        }
+
+        if (! apply_filters('woocommerce_update_cart_validation', true, $key, $item, $quantity)) {
+            return false;
+        }
+
+        $cart->set_quantity($key, $quantity, true);
+
+        return true;
+    }
+
+    private static function lineFor(WC_Cart $cart, int $productId, int $eventId): ?string
+    {
+        foreach ($cart->get_cart() as $key => $item) {
+            if (
+                is_array($item)
+                && self::int($item['product_id'] ?? null) === $productId
+                && self::int($item[Keys::CART_EVENT] ?? null) === $eventId
+            ) {
+                return (string) $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * What the basket holds of one event's tickets.
+     *
+     * @return array<int, int> Product ID => quantity.
+     */
+    public function basketFor(int $eventId, ?WC_Cart $cart = null): array
+    {
+        $cart ??= $this->shop->cart();
+        if ($eventId <= 0 || ! $cart instanceof WC_Cart) {
+            return [];
+        }
+
+        $tickets = [];
+        foreach ($cart->get_cart() as $item) {
+            if (! is_array($item) || self::int($item[Keys::CART_EVENT] ?? null) !== $eventId) {
+                continue;
+            }
+            $productId = self::int($item['product_id'] ?? null);
+            $quantity = self::int($item['quantity'] ?? null);
+            if ($productId > 0 && $quantity > 0) {
+                $tickets[$productId] = ($tickets[$productId] ?? 0) + $quantity;
+            }
+        }
+
+        return $tickets;
+    }
+
+    /**
+     * admin-ajax: the basket's tickets for the event in `event`, for
+     * `assets/js/basket.js`. Read-only and only ever the requester's own
+     * basket, so, like the form itself, it takes no nonce.
+     */
+    public function basketResponse(): void
+    {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- see the method comment.
+        $eventId = isset($_POST['event']) && is_numeric($_POST['event']) ? (int) $_POST['event'] : 0;
+
+        wp_send_json_success(['tickets' => (object) $this->basketFor($eventId)]);
+    }
+
+    private static function int(mixed $value): int
+    {
+        return is_numeric($value) ? (int) $value : 0;
     }
 
     /**
@@ -147,12 +304,15 @@ class CartHandler
             return $file;
         }
 
+        wp_enqueue_script('tickets-sharp-basket', TICKETS_SHARP_URL . 'assets/js/basket.js', ['jquery'], TICKETS_SHARP_VERSION, true);
+
         return TICKETS_SHARP_DIR . 'views/tickets-form-fields.php';
     }
 
     /**
      * @param array<mixed, mixed> $post
-     * @return array{event: int, tickets: array<int, int>}
+     * @return array{event: int, tickets: array<int, int>} Zero quantities are
+     *         kept: they matter when the form replaces the basket.
      */
     public static function decode(array $post): array
     {
@@ -171,8 +331,8 @@ class CartHandler
             }
             $id = is_numeric($row['ticket_id'] ?? null) ? (int) $row['ticket_id'] : 0;
             $quantity = is_numeric($row['quantity'] ?? null) ? (int) $row['quantity'] : 0;
-            if ($id > 0 && $quantity > 0) {
-                $tickets[$id] = ($tickets[$id] ?? 0) + min($quantity, 1000);
+            if ($id > 0 && $quantity >= 0) {
+                $tickets[$id] = min(($tickets[$id] ?? 0) + $quantity, 1000);
             }
         }
 

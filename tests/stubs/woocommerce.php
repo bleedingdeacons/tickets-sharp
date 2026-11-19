@@ -21,6 +21,9 @@ namespace {
         {
             /** @var mixed Null until WooCommerce loads the cart (front-end requests only). */
             public $cart;
+
+            /** @var mixed The shopper's session (WC_Session), loaded with the cart. */
+            public $session;
         }
     }
 
@@ -455,6 +458,36 @@ namespace {
                 );
 
                 return $key;
+            }
+
+            /**
+             * @param string $cart_item_key
+             * @param int    $quantity
+             * @param bool   $refresh_totals
+             * @return bool
+             */
+            public function set_quantity($cart_item_key, $quantity = 1, $refresh_totals = true)
+            {
+                if ($quantity <= 0) {
+                    return $this->remove_cart_item($cart_item_key);
+                }
+                $this->cart_contents[$cart_item_key]['quantity'] = (int) $quantity;
+
+                return true;
+            }
+
+            /**
+             * @param string $cart_item_key
+             * @return bool
+             */
+            public function remove_cart_item($cart_item_key)
+            {
+                if (! isset($this->cart_contents[$cart_item_key])) {
+                    return false;
+                }
+                unset($this->cart_contents[$cart_item_key]);
+
+                return true;
             }
 
             public function set_session(): void
