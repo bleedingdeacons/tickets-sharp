@@ -22,8 +22,9 @@ beforeEach(function (): void {
         return true;
     })->byDefault();
 
-    // Ticket 5 requires each attendee's email; ticket 6 only asks for it; ticket 7 asks nothing.
+    // Tickets 5 and 8 require each attendee's email; ticket 6 only asks for it; ticket 7 asks nothing.
     WpState::$postMeta[5][Keys::PRODUCT_FIELDS] = FieldSet::fromText("Name | name | required\nEmail | email | required");
+    WpState::$postMeta[8][Keys::PRODUCT_FIELDS] = FieldSet::fromText('Email | email | required');
     WpState::$postMeta[6][Keys::PRODUCT_FIELDS] = FieldSet::fromText("Name | name | required\nEmail | email | optional");
 });
 
@@ -32,7 +33,7 @@ function ticketFor(int $id, int $product, string $email, int $event = 10, string
     return ['attendee_id' => $id, 'product_id' => $product, 'event_id' => $event, 'order_status' => $status, 'holder_email' => $email];
 }
 
-it('sends the buyer every ticket, and each attendee of a ticket requiring email their own', function (): void {
+it('sends the buyer every ticket, and each attendee address of a ticket requiring email its own', function (): void {
     $order = Make::order(900);
     $this->provider->shouldReceive('get_attendees_by_order_id')->with(900)->andReturn([
         ticketFor(1, 5, 'pat@example.test'),
@@ -47,13 +48,107 @@ it('sends the buyer every ticket, and each attendee of a ticket requiring email 
     expect($this->mailer->sendForOrder($order))->toBeTrue()
         ->and($this->sends)->toBe([
             ['pat@example.test', [1, 2, 3, 4], 10],
-            ['pat@example.test', [1], 10],
-            ['pat@example.test', [2], 10],
+            ['pat@example.test', [1, 2], 10],
             ['ann@example.test', [3], 10],
             ['pat@example.test', [5], 11],
         ])
         ->and($order->get_meta(Keys::ORDER_TICKETS_SENT))->toBe('yes')
         ->and($this->mailer->sendForOrder($order))->toBeFalse();
+});
+
+it('sends each distinct attendee address one e-mail', function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 5, 'ann@example.test'),
+        ticketFor(2, 5, 'bo@example.test'),
+        ticketFor(3, 8, 'cy@example.test'),
+    ]);
+
+    $this->mailer->sendForOrder(Make::order(900));
+
+    expect($this->sends)->toBe([
+        ['pat@example.test', [1, 2, 3], 10],
+        ['ann@example.test', [1], 10],
+        ['bo@example.test', [2], 10],
+        ['cy@example.test', [3], 10],
+    ]);
+});
+
+it('groups the tickets of attendees who gave the same address, on one line or across lines', function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 5, 'ann@example.test'),
+        ticketFor(2, 5, 'bo@example.test'),
+        ticketFor(3, 5, 'ann@example.test'),
+        ticketFor(4, 8, 'ann@example.test'),
+        ticketFor(5, 8, 'bo@example.test'),
+    ]);
+
+    $this->mailer->sendForOrder(Make::order(900));
+
+    expect($this->sends)->toBe([
+        ['pat@example.test', [1, 2, 3, 4, 5], 10],
+        ['ann@example.test', [1, 3, 4], 10],
+        ['bo@example.test', [2, 5], 10],
+    ]);
+});
+
+it('matches attendee addresses ignoring case and surrounding spaces', function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 5, ' Ann@Example.test '),
+        ticketFor(2, 8, 'ann@example.TEST'),
+        ticketFor(3, 5, "ANN@EXAMPLE.TEST\t"),
+    ]);
+
+    $this->mailer->sendForOrder(Make::order(900));
+
+    expect($this->sends)->toBe([
+        ['pat@example.test', [1, 2, 3], 10],
+        ['Ann@Example.test', [1, 2, 3], 10],
+    ]);
+});
+
+it("still sends attendees who gave the buyer's address their own e-mail, once", function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 5, 'PAT@example.test'),
+        ticketFor(2, 8, 'pat@example.test'),
+        ticketFor(3, 5, 'ann@example.test'),
+    ]);
+
+    $this->mailer->sendForOrder(Make::order(900));
+
+    expect($this->sends)->toBe([
+        ['pat@example.test', [1, 2, 3], 10],
+        ['PAT@example.test', [1, 2], 10],
+        ['ann@example.test', [3], 10],
+    ]);
+});
+
+it("leaves out tickets that do not require the attendee's email, even at a shared address", function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 5, 'ann@example.test'),
+        ticketFor(2, 6, 'ann@example.test'),
+        ticketFor(3, 7, 'ann@example.test'),
+    ]);
+
+    $this->mailer->sendForOrder(Make::order(900));
+
+    expect($this->sends)->toBe([['pat@example.test', [1, 2, 3], 10], ['ann@example.test', [1], 10]]);
+});
+
+it('sends a shared address one e-mail per event', function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 5, 'ann@example.test', 10),
+        ticketFor(2, 8, 'ann@example.test', 11),
+        ticketFor(3, 5, 'ann@example.test', 10),
+    ]);
+
+    $this->mailer->sendForOrder(Make::order(900));
+
+    expect($this->sends)->toBe([
+        ['pat@example.test', [1, 3], 10],
+        ['ann@example.test', [1, 3], 10],
+        ['pat@example.test', [2], 11],
+        ['ann@example.test', [2], 11],
+    ]);
 });
 
 it('skips an attendee address that is not an email', function (): void {
@@ -64,12 +159,16 @@ it('skips an attendee address that is not an email', function (): void {
     expect($this->sends)->toBe([['pat@example.test', [1, 2], 10]]);
 });
 
-it('sends each attendee their own ticket when the order has no buyer address', function (): void {
-    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([ticketFor(1, 7, 'ann@example.test'), ticketFor(2, 7, 'bo@example.test')]);
+it('sends each attendee address its tickets when the order has no buyer address', function (): void {
+    $this->provider->shouldReceive('get_attendees_by_order_id')->andReturn([
+        ticketFor(1, 7, 'ann@example.test'),
+        ticketFor(2, 7, 'bo@example.test'),
+        ticketFor(3, 6, 'Ann@example.test'),
+    ]);
 
     $this->mailer->sendForOrder(Make::order(900, ['billing_email' => '']));
 
-    expect($this->sends)->toBe([['ann@example.test', [1], 10], ['bo@example.test', [2], 10]]);
+    expect($this->sends)->toBe([['ann@example.test', [1, 3], 10], ['bo@example.test', [2], 10]]);
 });
 
 it('knows which tickets require each attendee\'s email', function (): void {

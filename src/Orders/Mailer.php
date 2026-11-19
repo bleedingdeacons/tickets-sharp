@@ -17,13 +17,15 @@ if (! defined('ABSPATH')) {
  * Sends an order's tickets through Event Tickets' own ticket e-mail.
  *
  * - The buyer gets one e-mail per event holding every ticket they bought.
- * - Where a ticket requires each attendee's email, every attendee of that
- *   ticket is also sent an e-mail of their own, with just their ticket, to
- *   the address they gave — even when that is the buyer's address too.
+ * - Where a ticket requires each attendee's email, its attendees are also
+ *   e-mailed their tickets at the address they gave: one e-mail per event to
+ *   each distinct address, holding every ticket given that address, from any
+ *   line of the order. Addresses match ignoring case and surrounding spaces.
+ *   This e-mail goes out even when the address is the buyer's own.
  *
  * Each e-mail is addressed here rather than left to Event Tickets'
- * send_tickets_email_for_attendees(), which groups tickets by address and so
- * would fold attendees who share an address into one e-mail.
+ * send_tickets_email_for_attendees(), which would also group the buyer's
+ * tickets in with an attendee's when they share an address.
  *
  * With Event Tickets' "Tickets Emails" on (its default), the e-mail is its
  * Ticket e-mail template, so it looks and is configured like every other
@@ -73,13 +75,8 @@ class Mailer
                 $sent = $this->send($buyer, $attendees, $args) || $sent;
             }
 
-            foreach ($attendees as $attendee) {
-                $holder = is_string($attendee['holder_email'] ?? null) ? $attendee['holder_email'] : '';
-                // Without a buyer address there is nobody else to give the tickets to.
-                $ownCopy = $buyer === '' || $this->requiresEmail($attendee);
-                if ($ownCopy && $holder !== '' && is_email($holder)) {
-                    $sent = $this->send($holder, [$attendee], $args) || $sent;
-                }
+            foreach ($this->byHolderAddress($attendees, $buyer === '') as [$to, $tickets]) {
+                $sent = $this->send($to, $tickets, $args) || $sent;
             }
         }
 
@@ -113,6 +110,37 @@ class Mailer
         }
 
         return $this->requiresEmail[$productId];
+    }
+
+    /**
+     * The attendees who are sent their own tickets, grouped by the address
+     * they gave, in the order each address first appears.
+     *
+     * @param list<array<string, mixed>> $attendees
+     * @param bool $everyone Every attendee with an address, not only those of
+     *                       tickets requiring it (the order has no buyer address,
+     *                       so there is nobody else to give the tickets to).
+     * @return list<array{0: string, 1: list<array<string, mixed>>}> [address, its tickets]
+     */
+    private function byHolderAddress(array $attendees, bool $everyone): array
+    {
+        $groups = [];
+        foreach ($attendees as $attendee) {
+            if (! $everyone && ! $this->requiresEmail($attendee)) {
+                continue;
+            }
+
+            $holder = is_string($attendee['holder_email'] ?? null) ? trim($attendee['holder_email']) : '';
+            if ($holder === '' || ! is_email($holder)) {
+                continue;
+            }
+
+            $key = strtolower($holder);
+            $groups[$key] ??= [$holder, []];
+            $groups[$key][1][] = $attendee;
+        }
+
+        return array_values($groups);
     }
 
     /**
