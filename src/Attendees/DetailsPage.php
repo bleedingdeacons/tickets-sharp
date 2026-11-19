@@ -24,7 +24,9 @@ if (! defined('ABSPATH')) {
  * line when the order is created. Checkout is refused until every ticket has
  * valid answers — if a quantity changes in the cart, the buyer is sent back.
  *
- * Nothing a buyer enters is thrown away while they change their mind. When a
+ * Nothing a buyer enters is thrown away while they change their mind. The
+ * page saves what has been typed as it goes (`assets/js/attendees.js`, through
+ * {@see draftResponse()}), so leaving it for the event page keeps it. When a
  * quantity goes down, the answers of the attendees left out stay on the cart
  * line (unused, and not copied to the order) and come back if it goes up
  * again. When a ticket leaves the basket its answers are set aside in the
@@ -41,6 +43,7 @@ class DetailsPage
     public const SHORTCODE = 'tickets_sharp_attendees';
     public const NONCE = 'tsharp_attendees';
     public const INPUT = 'tsharp_attendee';
+    public const DRAFT_ACTION = 'tsharp_attendee_draft';
 
     public function __construct(
         private readonly Shop $shop,
@@ -52,6 +55,8 @@ class DetailsPage
     {
         add_shortcode(self::SHORTCODE, [$this, 'render']);
         add_action('template_redirect', [$this, 'maybeSave'], 6);
+        add_action('wp_ajax_' . self::DRAFT_ACTION, [$this, 'draftResponse']);
+        add_action('wp_ajax_nopriv_' . self::DRAFT_ACTION, [$this, 'draftResponse']);
         add_action('woocommerce_check_cart_items', [$this, 'checkCart']);
         add_action('woocommerce_store_api_cart_errors', [$this, 'storeApiErrors'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [$this, 'copyToOrderItem'], 10, 4);
@@ -228,6 +233,37 @@ class DetailsPage
         return $errors;
     }
 
+    /**
+     * admin-ajax: stores what has been typed so far, valid or not, so that
+     * leaving the page without continuing (the browser's Back button, back
+     * to the event page to change the numbers) loses nothing. Continuing to
+     * checkout still validates everything, through {@see handlePost()}.
+     */
+    public function draftResponse(): void
+    {
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- verified in draft().
+        $post = wp_unslash($_POST);
+        // phpcs:enable
+
+        wp_send_json_success(['saved' => $this->draft(is_array($post) ? $post : [])]);
+    }
+
+    /**
+     * @param array<mixed, mixed> $post
+     * @return bool Whether anything was stored.
+     */
+    public function draft(array $post): bool
+    {
+        $nonce = is_string($post[self::NONCE] ?? null) ? $post[self::NONCE] : '';
+        if (! wp_verify_nonce($nonce, self::NONCE) || ! is_array($post[self::INPUT] ?? null)) {
+            return false;
+        }
+
+        $this->save($post[self::INPUT]);
+
+        return true;
+    }
+
     public function maybeSave(): void
     {
         // phpcs:disable WordPress.Security.NonceVerification.Missing -- verified below.
@@ -287,7 +323,9 @@ class DetailsPage
                 . esc_html__('Continue to checkout', 'tickets-sharp') . '</a></p></div>';
         }
 
-        $html = '<form class="tsharp-attendees" method="post" action="">';
+        wp_enqueue_script('tickets-sharp-attendees', TICKETS_SHARP_URL . 'assets/js/attendees.js', [], TICKETS_SHARP_VERSION, true);
+
+        $html = '<form class="tsharp-attendees" method="post" action="" data-draft-url="' . esc_url(admin_url('admin-ajax.php')) . '">';
         $html .= '<input type="hidden" name="' . esc_attr(self::NONCE) . '" value="' . esc_attr(wp_create_nonce(self::NONCE)) . '">';
 
         foreach ($items as $item) {
