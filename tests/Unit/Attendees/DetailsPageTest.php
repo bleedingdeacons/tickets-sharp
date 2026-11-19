@@ -162,6 +162,19 @@ it('saves what has been typed so far, valid or not', function (): void {
         ->and($this->page->isIncomplete())->toBeTrue();
 });
 
+it('matches answers to attendee numbers, whatever order they arrive in', function (): void {
+    $this->cart->cart_contents['k1']['quantity'] = 3;
+
+    $this->page->save(['k1' => [2 => ['name' => 'Cat'], 0 => ['name' => 'Ann'], 1 => ['name' => 'Bo']]]);
+    $this->page->save(['k1' => ['1' => ['name' => 'Bob'], '0' => ['name' => 'Ann'], '2' => ['name' => 'Cat']]]);
+
+    expect(array_column($this->cart->cart_contents['k1'][Keys::CART_ATTENDEES], 'name'))->toBe(['Ann', 'Bob', 'Cat']);
+
+    $this->page->save(['k1' => [1 => ['name' => 'Only Bob']]]);
+
+    expect(array_column($this->cart->cart_contents['k1'][Keys::CART_ATTENDEES], 'name'))->toBe(['', 'Only Bob', '']);
+});
+
 it('saves no draft with a bad nonce or nothing posted', function (): void {
     Functions\when('wp_verify_nonce')->alias(static fn ($nonce): int|false => $nonce === 'good' ? 1 : false);
 
