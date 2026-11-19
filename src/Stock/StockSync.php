@@ -7,6 +7,7 @@ namespace TicketsSharp\Stock;
 use TicketsSharp\Attendees\Ledger;
 use TicketsSharp\Commerce\Provider;
 use TicketsSharp\Integration\EventTickets;
+use TicketsSharp\Support\Keys;
 
 if (! defined('ABSPATH')) {
     exit;
@@ -22,6 +23,13 @@ if (! defined('ABSPATH')) {
  * attendees, this recomputes them from the attendees themselves — so a missed
  * hook can be put right by the next change, rather than drifting for ever as a
  * running total would.
+ *
+ * It also runs after any WooCommerce save of a ticket product. WooCommerce's
+ * `WC_Product::validate_props()` asks `get_manage_stock()` in "view" context,
+ * which {@see \TicketsSharp\Commerce\TicketProducts} answers "no" for
+ * tickets, so every save blanks `_stock` — and Event Tickets then reads the
+ * ticket as having none left. Saves from the product editor, quick edit, the
+ * REST API or another plugin would otherwise leave it at zero.
  */
 class StockSync
 {
@@ -37,6 +45,23 @@ class StockSync
     {
         add_action('tickets_sharp/attendees_changed', [$this, 'syncEvents']);
         add_action('tickets_sharp/ticket_saved', [$this, 'syncEvent']);
+        add_action('woocommerce_update_product', [$this, 'syncProduct']);
+    }
+
+    /**
+     * @param mixed $productId
+     */
+    public function syncProduct($productId): void
+    {
+        $productId = is_numeric($productId) ? (int) $productId : 0;
+        if ($productId <= 0) {
+            return;
+        }
+
+        $eventId = get_post_meta($productId, Keys::TICKET_EVENT, true);
+        if (is_numeric($eventId) && (int) $eventId > 0) {
+            $this->syncEvent((int) $eventId);
+        }
     }
 
     /**
