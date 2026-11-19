@@ -924,6 +924,19 @@ namespace {
                 return true;
             }
 
+            /**
+             * @param string               $to
+             * @param array<int, mixed>    $tickets
+             * @param array<string, mixed> $args
+             * @return bool
+             */
+            public function send_tickets_email_for_attendee($to, $tickets, $args = [])
+            {
+                $this->parentCalls[] = ['send_tickets_email_for_attendee', $to];
+
+                return true;
+            }
+
             /** @param int|string $post_id */
             public function clear_ticket_cache_for_post($post_id): void
             {

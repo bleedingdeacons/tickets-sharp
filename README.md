@@ -33,8 +33,9 @@ gateway, coupon or tax setup the shop already has.
   phone number, text, a choice from a list or a checkbox. The fields are set in the ticket form's
   **Attendee information** box, under Capacity; a new ticket asks for each attendee's name and
   email by default. Buyers fill them in on an attendee details page between the cart and the
-  checkout. Each attendee with an email is sent their own ticket, and the buyer gets a copy of
-  them all. The answers show in the Attendees list, the CSV export and on the order.
+  checkout. The buyer is e-mailed all their tickets; where a ticket requires the attendee's email,
+  each attendee is also sent their own ticket at the address they gave, even when that is the
+  buyer's own. The answers show in the Attendees list, the CSV export and on the order.
 - **QR check-in.** Each ticket e-mail carries a QR code encoding Event Tickets' check-in link.
   Scanning it while signed in as an event manager checks the attendee in. The Event Tickets app
   reads the same codes. Only paid attendees can be checked in.
