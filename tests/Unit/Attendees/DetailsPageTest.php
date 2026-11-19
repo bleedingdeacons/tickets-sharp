@@ -45,6 +45,8 @@ it('registers the shortcode and the cart hooks', function (): void {
     $this->assertActionAdded('woocommerce_remove_cart_item');
     $this->assertActionAdded('woocommerce_add_to_cart');
     $this->assertActionAdded('woocommerce_cart_emptied');
+    $this->assertActionAdded('wp_ajax_tsharp_attendee_draft');
+    $this->assertActionAdded('wp_ajax_nopriv_tsharp_attendee_draft');
 });
 
 it('finds the tickets that ask for attendee details', function (): void {
@@ -148,6 +150,37 @@ it('does not overwrite answers a returning ticket already has, and forgets them 
     expect($session[Keys::SESSION_SET_ASIDE])->toBeNull();
 });
 
+it('saves what has been typed so far, valid or not', function (): void {
+    Functions\when('wp_verify_nonce')->justReturn(1);
+
+    $saved = $this->page->draft([DetailsPage::NONCE => 'n', DetailsPage::INPUT => ['k1' => [['name' => 'Ann', 'email' => 'not-yet']]]]);
+
+    expect($saved)->toBeTrue()
+        ->and($this->cart->cart_contents['k1'][Keys::CART_ATTENDEES][0])->toMatchArray(['name' => 'Ann', 'email' => 'not-yet'])
+        ->and($this->cart->cart_contents['k1'][Keys::CART_ATTENDEES][1])->toMatchArray(['name' => ''])
+        ->and($this->notices)->toBe([])
+        ->and($this->page->isIncomplete())->toBeTrue();
+});
+
+it('saves no draft with a bad nonce or nothing posted', function (): void {
+    Functions\when('wp_verify_nonce')->alias(static fn ($nonce): int|false => $nonce === 'good' ? 1 : false);
+
+    expect($this->page->draft([DetailsPage::NONCE => 'bad', DetailsPage::INPUT => ['k1' => [['name' => 'Eve']]]]))->toBeFalse()
+        ->and($this->page->draft([DetailsPage::NONCE => 'good']))->toBeFalse()
+        ->and($this->cart->cart_contents['k1'])->not->toHaveKey(Keys::CART_ATTENDEES);
+});
+
+it('answers the draft request', function (): void {
+    Functions\when('wp_verify_nonce')->justReturn(1);
+    $_POST = [DetailsPage::NONCE => 'n', DetailsPage::INPUT => ['k1' => [['name' => 'Ann']]]];
+    Functions\expect('wp_send_json_success')->once()->with(['saved' => true]);
+
+    $this->page->draftResponse();
+    $_POST = [];
+
+    expect($this->cart->cart_contents['k1'][Keys::CART_ATTENDEES][0])->toMatchArray(['name' => 'Ann']);
+});
+
 it('goes to checkout after a valid post', function (): void {
     Functions\when('wp_verify_nonce')->justReturn(1);
 
@@ -184,6 +217,9 @@ it('renders a fieldset per attendee with every field type', function (): void {
     expect(array_column(WpState::$enqueued, 'handle'))->toContain('tickets-sharp-attendees')
         ->and(is_readable(TICKETS_SHARP_DIR . 'assets/css/attendees.css'))->toBeTrue()
         ->and($html)->toContain('<p class="tsharp-attendees__submit">');
+
+    expect(is_readable(TICKETS_SHARP_DIR . 'assets/js/attendees.js'))->toBeTrue()
+        ->and($html)->toMatch('#<form class="tsharp-attendees" method="post" action="" data-draft-url="[^"]*admin-ajax\.php">#');
 
     expect($html)->toContain('<form class="tsharp-attendees"')
         ->toContain('name="tsharp_attendees" value="nonce-tsharp_attendees"')
