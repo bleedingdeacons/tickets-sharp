@@ -210,7 +210,8 @@ class DetailsPage
 
         $errors = [];
         foreach ($this->itemsNeedingFields($cart) as $item) {
-            $posted = is_array($input[$item['key']] ?? null) ? array_values($input[$item['key']]) : [];
+            // Keyed by attendee number (`[cart key][index]`), whatever order the fields arrive in.
+            $posted = is_array($input[$item['key']] ?? null) ? $input[$item['key']] : [];
             $answers = [];
 
             for ($i = 0; $i < $item['quantity']; $i++) {
