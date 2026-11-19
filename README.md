@@ -22,7 +22,11 @@ gateway, coupon or tax setup the shop already has.
   editor. They are hidden from the shop catalogue and search, and their price, description, sale
   window and capacity come from the ticket.
 - **WooCommerce cart and checkout.** The event page's "Get tickets" form adds tickets to the
-  WooCommerce cart. Both the classic and the block checkout work.
+  WooCommerce cart. Both the classic and the block checkout work. Back on the event page, the form
+  shows the tickets already in the basket for that event; changing the numbers and pressing
+  "Get tickets" again sets the basket to them, so attendees are added to or removed from the
+  attendee details. Nothing already entered is lost: details of attendees left out, or of a
+  ticket taken out of the basket, come back if the numbers go up again, until checkout.
 - **Attendees.** One attendee per ticket bought, created as soon as the order exists, so an unpaid
   order holds its seats. They appear in Event Tickets' Attendees list, CSV export and REST API.
 - **Ticket e-mails.** Sent through Event Tickets' own ticket e-mail once the order is paid.

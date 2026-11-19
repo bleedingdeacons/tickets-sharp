@@ -20,6 +20,7 @@ Tickets Sharp adds WooCommerce as a ticket provider to Event Tickets. Each ticke
 * Ticket e-mails through Event Tickets' own e-mail once the order is paid, with a check-in QR code.
 * Shared and capped event capacity, enforced across the whole basket.
 * Per-ticket attendee information fields, collected between cart and checkout.
+* The event page's ticket form shows what is already in the basket, and changing it adds or removes attendees.
 * Cancelled, failed and refunded orders release their seats; partial refunds mark individual attendees.
 * Compatible with WooCommerce High-Performance Order Storage and the cart and checkout blocks.
 

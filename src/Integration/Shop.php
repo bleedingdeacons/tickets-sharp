@@ -59,6 +59,23 @@ class Shop
         return $cart instanceof WC_Cart ? $cart : null;
     }
 
+    /** A value from the shopper's WooCommerce session, or null. */
+    public function sessionGet(string $key): mixed
+    {
+        $session = function_exists('WC') ? WC()->session : null;
+
+        return is_object($session) && method_exists($session, 'get') ? $session->get($key) : null;
+    }
+
+    /** Stores a value in the shopper's WooCommerce session; null removes it. */
+    public function sessionSet(string $key, mixed $value): void
+    {
+        $session = function_exists('WC') ? WC()->session : null;
+        if (is_object($session) && method_exists($session, 'set')) {
+            $session->set($key, $value);
+        }
+    }
+
     public function checkoutUrl(): string
     {
         return (string) wc_get_checkout_url();

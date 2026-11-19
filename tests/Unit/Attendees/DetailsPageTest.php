@@ -42,6 +42,9 @@ it('registers the shortcode and the cart hooks', function (): void {
     $this->assertActionAdded('woocommerce_checkout_create_order_line_item');
     $this->assertActionAdded('woocommerce_check_cart_items');
     $this->assertFilterAdded('woocommerce_get_item_data');
+    $this->assertActionAdded('woocommerce_remove_cart_item');
+    $this->assertActionAdded('woocommerce_add_to_cart');
+    $this->assertActionAdded('woocommerce_cart_emptied');
 });
 
 it('finds the tickets that ask for attendee details', function (): void {
@@ -82,6 +85,67 @@ it('asks again when the quantity grows', function (): void {
     $this->cart->cart_contents['k1']['quantity'] = 3;
 
     expect($this->page->isIncomplete())->toBeTrue();
+});
+
+it('keeps the answers of attendees left out when the quantity went down', function (): void {
+    $this->cart->cart_contents['k1'][Keys::CART_ATTENDEES] = [['name' => 'Ann'], ['name' => 'Bo'], ['name' => 'Cy']];
+    $this->cart->cart_contents['k1']['quantity'] = 1;
+
+    $this->page->save(['k1' => [['name' => 'Annie']]]);
+    $this->cart->cart_contents['k1']['quantity'] = 3;
+
+    $answers = $this->cart->cart_contents['k1'][Keys::CART_ATTENDEES];
+
+    expect($answers)->toHaveCount(3)
+        ->and($answers[0])->toMatchArray(['name' => 'Annie'])
+        ->and(array_slice($answers, 1))->toBe([['name' => 'Bo'], ['name' => 'Cy']])
+        ->and($this->page->isIncomplete())->toBeFalse();
+});
+
+it('sets a removed ticket\'s answers aside and gives them back when it returns', function (): void {
+    $session = [];
+    $this->shop->shouldReceive('sessionGet')->andReturnUsing(static function (string $key) use (&$session) {
+        return $session[$key] ?? null;
+    });
+    $this->shop->shouldReceive('sessionSet')->andReturnUsing(static function (string $key, $value) use (&$session): void {
+        $session[$key] = $value;
+    });
+    $this->cart->cart_contents['k1'][Keys::CART_ATTENDEES] = [['name' => 'Ann'], ['name' => 'Bo']];
+
+    $this->page->setAside('k1', $this->cart);
+    unset($this->cart->cart_contents['k1']);
+    $this->page->setAside('k2', $this->cart);
+    $this->page->setAside('gone', $this->cart);
+
+    expect($session[Keys::SESSION_SET_ASIDE])->toBe([5 => [['name' => 'Ann'], ['name' => 'Bo']]]);
+
+    $this->cart->cart_contents['new'] = ['product_id' => 5, 'quantity' => 1, Keys::CART_EVENT => 10];
+    $this->page->restore('new', 5);
+
+    expect($this->cart->cart_contents['new'][Keys::CART_ATTENDEES])->toBe([['name' => 'Ann'], ['name' => 'Bo']])
+        ->and($session[Keys::SESSION_SET_ASIDE])->toBeNull();
+});
+
+it('does not overwrite answers a returning ticket already has, and forgets them at checkout', function (): void {
+    $session = [Keys::SESSION_SET_ASIDE => [5 => [['name' => 'Old']], 6 => [['name' => 'Six']]]];
+    $this->shop->shouldReceive('sessionGet')->andReturnUsing(static function (string $key) use (&$session) {
+        return $session[$key] ?? null;
+    });
+    $this->shop->shouldReceive('sessionSet')->andReturnUsing(static function (string $key, $value) use (&$session): void {
+        $session[$key] = $value;
+    });
+    $this->cart->cart_contents['k1'][Keys::CART_ATTENDEES] = [['name' => 'New']];
+
+    $this->page->restore('k1', 5);
+    $this->page->restore('k3', 7);
+    $this->page->restore('missing', 6);
+
+    expect($this->cart->cart_contents['k1'][Keys::CART_ATTENDEES])->toBe([['name' => 'New']])
+        ->and($session[Keys::SESSION_SET_ASIDE])->toBe([6 => [['name' => 'Six']]]);
+
+    $this->page->forgetSetAside();
+
+    expect($session[Keys::SESSION_SET_ASIDE])->toBeNull();
 });
 
 it('goes to checkout after a valid post', function (): void {
@@ -172,6 +236,16 @@ it('copies the event and answers onto the order line', function (): void {
     $this->page->copyToOrderItem('not an item', 'k1', []);
 
     expect($item->meta)->toBe([Keys::ITEM_EVENT => 10, Keys::ITEM_ATTENDEES => [['name' => 'Ann'], []]]);
+});
+
+it('copies only the attendees bought, not answers kept from a higher quantity', function (): void {
+    $item = new WC_Order_Item_Product(1);
+
+    $this->page->copyToOrderItem($item, 'k1', ['quantity' => 1, Keys::CART_ATTENDEES => [['name' => 'Ann'], ['name' => 'Bo']]]);
+
+    expect($item->meta)->toBe([Keys::ITEM_ATTENDEES => [['name' => 'Ann']]])
+        ->and($this->page->itemData([], ['product_id' => 5, 'quantity' => 1, Keys::CART_ATTENDEES => [['name' => 'Ann'], ['name' => 'Bo']]]))
+        ->toBe([['key' => 'Attendees', 'value' => 'Ann']]);
 });
 
 it('shows attendee names in the cart', function (): void {
