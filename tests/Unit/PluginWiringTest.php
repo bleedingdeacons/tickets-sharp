@@ -60,6 +60,8 @@ it('registers the provider, its statuses, repositories and hooks', function (): 
     $this->assertFilterAdded('woocommerce_add_to_cart_validation');
     $this->assertFilterAdded('tribe_tickets_attendee_repository_map');
     $this->assertFilterAdded('tec_tickets_completed_status_by_provider_name');
+    $this->assertFilterAdded('sanitize_post_meta__tribe_default_ticket_provider');
+    $this->assertActionAdded('admin_init');
     $this->assertActionAdded('tribe_events_tickets_metabox_edit_main');
     $this->assertFilterAdded('tec_tickets_admin_tickets_table_query_args');
     $this->assertActionAdded('woocommerce_email_after_order_table');
