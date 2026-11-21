@@ -22,6 +22,7 @@ use TicketsSharp\Commerce\Urls;
 use TicketsSharp\Emails\OrderEmailTickets;
 use TicketsSharp\Emails\TicketImage;
 use TicketsSharp\Integration\EventTickets;
+use TicketsSharp\Integration\ProviderMeta;
 use TicketsSharp\Integration\Repositories\AttendeeRepository;
 use TicketsSharp\Integration\Repositories\DefaultAttendeeRepository;
 use TicketsSharp\Integration\Repositories\DefaultTicketRepository;
@@ -138,6 +139,7 @@ final class Plugin
         StatusManager::register(tribe('tickets.status'));
         add_filter('tec_tickets_completed_status_by_provider_name', [$this, 'completedStatuses'], 10, 2);
         $this->bindRepositories();
+        (new ProviderMeta())->register();
 
         $shared = new SharedCapacity($eventTickets, $ledger);
         $generator = new AttendeeGenerator($store, $products, $shop);

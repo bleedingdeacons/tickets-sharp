@@ -24,3 +24,4 @@ if (is_array($tsharpSettings) && is_numeric($tsharpSettings['details_page_id'] ?
 }
 
 delete_option('tickets_sharp_settings');
+delete_option('tickets_sharp_provider_meta_repaired');
