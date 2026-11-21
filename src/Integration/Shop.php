@@ -98,6 +98,33 @@ class Shop
         return function_exists('get_woocommerce_currency') ? (string) get_woocommerce_currency() : '';
     }
 
+    /** WooCommerce's currency symbol, HTML-encoded as WooCommerce returns it (e.g. `&pound;`). */
+    public function currencySymbol(): string
+    {
+        return function_exists('get_woocommerce_currency_symbol') ? (string) get_woocommerce_currency_symbol() : '';
+    }
+
+    /** WooCommerce's symbol position: `left`, `right`, `left_space` or `right_space`. */
+    public function currencyPosition(): string
+    {
+        return (string) get_option('woocommerce_currency_pos', 'left');
+    }
+
+    public function decimalSeparator(): string
+    {
+        return function_exists('wc_get_price_decimal_separator') ? (string) wc_get_price_decimal_separator() : '.';
+    }
+
+    public function thousandSeparator(): string
+    {
+        return function_exists('wc_get_price_thousand_separator') ? (string) wc_get_price_thousand_separator() : ',';
+    }
+
+    public function decimals(): int
+    {
+        return function_exists('wc_get_price_decimals') ? (int) wc_get_price_decimals() : 2;
+    }
+
     public function formatPrice(float $amount): string
     {
         return function_exists('wc_price') ? wp_strip_all_tags((string) wc_price($amount)) : number_format($amount, 2);

@@ -75,7 +75,7 @@ gateway, coupon or tax setup the shop already has.
 ## How it plugs into Event Tickets
 
 Event Tickets has no registration API for a new commerce provider. A few of its lists are
-hard-coded, so the plugin works around them in four ways. Every subclass calls its parent and only
+hard-coded, so the plugin works around them in six ways. Every subclass calls its parent and only
 adds to it.
 
 | Event Tickets | Hard-coded where | Tickets Sharp |
@@ -84,6 +84,8 @@ adds to it.
 | Order statuses per provider | `…::$status_managers` | Same patch adds `Integration\OrderStatuses` |
 | Attendee / ticket repositories | `Attendee_Repository::*_keys()`, `Ticket_Repository::ticket_types()` | Rebinds `tickets.attendee-repository` / `tickets.ticket-repository` to subclasses, and adds its own to `tribe_attendees()` / `tribe_tickets()` |
 | Tickets form provider map | `tickets-block.js` | Reads the posted JSON itself (`Commerce\CartHandler`) |
+| Currency per provider | `Tribe__Tickets__Commerce__Currency::get_provider_*()`, `get_currency_*()` | Rebinds `tickets.commerce.currency` to a subclass that answers with WooCommerce's symbol, position, separators and decimals for Tickets Sharp, with its filters at priority 20 (`Integration\Currency`) |
+| Event's saved provider | `Settings::skip_sanitization()` re-slashes only Tickets Commerce's class | Re-slashes Tickets Sharp's in the same sanitize filter and repairs stored values once (`Integration\ProviderMeta`) |
 
 If Event Tickets renames the status manager's members, the plugin stands down with an admin notice
 rather than half-working.
