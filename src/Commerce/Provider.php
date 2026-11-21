@@ -366,6 +366,18 @@ class Provider extends Tribe__Tickets__Tickets
     }
 
     /**
+     * WooCommerce's currency code; Event Tickets' default is `USD`.
+     *
+     * @return string
+     */
+    public function get_currency()
+    {
+        $code = $this->shop->currency();
+
+        return $code !== '' ? $code : parent::get_currency();
+    }
+
+    /**
      * @param mixed $product
      */
     private function productOf($product): ?WC_Product

@@ -814,6 +814,12 @@ namespace {
                 return false;
             }
 
+            /** @return string */
+            public function get_currency()
+            {
+                return 'USD';
+            }
+
             /**
              * @param int|WP_Post|null $post_id
              * @param int|string       $ticket_id
@@ -945,6 +951,158 @@ namespace {
             /** @param int|string $post_id */
             public function clear_attendees_cache($post_id): void
             {
+            }
+        }
+    }
+
+    if (! class_exists('Tribe__Tickets__Commerce__Currency')) {
+        /**
+         * Event Tickets' currency service. Every answer here is Tickets
+         * Commerce's on a site set to US dollars, which is what Event Tickets
+         * gives any provider it does not know.
+         */
+        class Tribe__Tickets__Commerce__Currency
+        {
+            /** @var array<string, array<string, string>> */
+            public $currency_code_options_map = [];
+
+            public function __construct()
+            {
+            }
+
+            /** @return void */
+            public function hook()
+            {
+                add_filter('tribe_currency_symbol', [$this, 'filter_currency_symbol'], 10, 2);
+                add_filter('tribe_currency_cost', [$this, 'filter_currency_cost'], 10, 2);
+                add_filter('tribe_reverse_currency_position', [$this, 'reverse_currency_symbol_position'], 10, 2);
+                add_filter('get_post_metadata', [$this, 'filter_cost_meta'], 10, 4);
+            }
+
+            /**
+             * @param mixed $post_id
+             * @param mixed $decode
+             * @return string
+             */
+            public function get_currency_symbol($post_id = null, $decode = false)
+            {
+                return $decode ? '$' : '&#x24;';
+            }
+
+            /**
+             * @param mixed $unused_currency_symbol
+             * @param mixed $post_id
+             * @return string
+             */
+            public function filter_currency_symbol($unused_currency_symbol, $post_id = null)
+            {
+                $provider = Tribe__Tickets__Tickets::get_event_ticket_provider_object($post_id);
+
+                return $this->get_provider_symbol($provider ?: '', $post_id);
+            }
+
+            /**
+             * @param mixed $cost
+             * @param mixed $post_id
+             * @return string
+             */
+            public function filter_currency_cost($cost = '', $post_id = 0)
+            {
+                return (string) $cost;
+            }
+
+            /**
+             * @param mixed $post_id
+             * @return string
+             */
+            public function get_currency_symbol_position($post_id = null)
+            {
+                return 'prefix';
+            }
+
+            /**
+             * @param mixed $unused_reverse_position
+             * @param mixed $post_id
+             * @return bool
+             */
+            public function reverse_currency_symbol_position($unused_reverse_position, $post_id = null)
+            {
+                return $this->get_currency_symbol_position($post_id) !== 'prefix';
+            }
+
+            /**
+             * @param mixed $meta
+             * @param mixed $object_id
+             * @param mixed $meta_key
+             * @param mixed $single
+             * @return mixed
+             */
+            public function filter_cost_meta($meta, $object_id, $meta_key, $single)
+            {
+                return $meta;
+            }
+
+            /**
+             * @param mixed $provider
+             * @param mixed $object_id
+             * @return string
+             */
+            public function get_provider_symbol($provider, $object_id = null)
+            {
+                return $this->get_currency_symbol($object_id);
+            }
+
+            /**
+             * @param mixed $provider
+             * @param mixed $object_id
+             * @return string
+             */
+            public function get_provider_symbol_position($provider, $object_id)
+            {
+                return $this->get_currency_symbol_position($object_id);
+            }
+
+            /**
+             * @param mixed $provider
+             * @return string
+             */
+            public function get_currency_decimal_point($provider = null)
+            {
+                return '.';
+            }
+
+            /**
+             * @param mixed $provider
+             * @return string
+             */
+            public function get_currency_thousands_sep($provider = null)
+            {
+                return ',';
+            }
+
+            /**
+             * @param mixed $provider
+             * @return int|string
+             */
+            public function get_number_of_decimals($provider = null)
+            {
+                return 2;
+            }
+
+            /**
+             * @param mixed $post_id
+             * @param mixed $provider
+             * @return array<string, mixed>
+             */
+            public function get_currency_by_provider($post_id, $provider = null)
+            {
+                return [
+                    'symbol' => $this->get_provider_symbol($provider),
+                    'placement' => $this->get_provider_symbol_position($provider, $post_id),
+                    'decimal_point' => $this->get_currency_decimal_point($provider),
+                    'thousands_sep' => $this->get_currency_thousands_sep($provider),
+                    'number_of_decimals' => $this->get_number_of_decimals($provider),
+                ];
             }
         }
     }
